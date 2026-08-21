@@ -5,6 +5,7 @@ services:
     image: logali-sap-rfc-guard-jco:0.1.2
     container_name: sap-rfc-guard-jco
     restart: unless-stopped
+    working_dir: /tmp
     env_file:
       - /srv/sap-rfc-guard/secrets/sap-rfc-guard.env
     volumes:
@@ -35,4 +36,4 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.31.250.0/28
+        - subnet: ${SAP_RFC_EGRESS_SUBNET:-10.203.43.0/28}

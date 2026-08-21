@@ -53,6 +53,11 @@ synthetic data.
 Keep the existing synthetic contract container available for regression tests.
 The JCo sidecar must have no published host ports.
 
+The example gives the isolated SAP egress network a small private subnet. Set
+`SAP_RFC_EGRESS_SUBNET` to a non-overlapping CIDR when the host already uses
+that range. The service runs from `/tmp` so SAP JCo can write its local
+diagnostic log while the container root filesystem remains read-only.
+
 The real sidecar requires TLS. Generate an internal CA and a PKCS#12 server
 keystore whose SAN contains `sap-rfc-guard-jco`, mount the keystore read-only,
 and add the CA certificate to n8n through `NODE_EXTRA_CA_CERTS`. Do not disable
@@ -69,5 +74,7 @@ override.
 Run `scripts/deploy-server.sh` as root only when deployment is intended. Before
 starting a container it validates that both JCo files exist, their architecture
 and JAR contents are correct, the secret has no placeholders, and the Compose
-file is valid. A missing dependency exits non-zero and leaves the synthetic
-contract service untouched.
+file is valid. The JAR inspection uses Python 3 and does not require a Java SDK
+on the host. Override `STACK_DIR`, `SECRET_FILE`, and `VENDOR_DIR` when the
+installation uses different server paths. A missing dependency exits non-zero
+and leaves the synthetic contract service untouched.
