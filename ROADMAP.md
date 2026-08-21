@@ -18,14 +18,20 @@ can be reviewed before a production SAP identity is connected.
 
 ## Before `1.0.0`
 
-- Complete one controlled execution against SAP with SAP JCo for Linux x86-64.
 - Validate every enabled standard BAPI and its projected structures in each target release.
-- Preserve SU01 and STAUTHTRACE evidence for positive and negative cases.
+- Replace the temporary test account with a least-privilege service account.
+- Preserve complete SU01 and STAUTHTRACE evidence for positive and negative cases.
 - Verify direct and load-balanced destination modes.
-- Publish the community package to npm under the `next` tag.
+- Complete positive purchase-order and sales-order reads with approved document IDs.
 
 ## Candidate `0.4.x` work
 
+- Material ATP through a fixed `BAPI_MATERIAL_AVAILABILITY` alias.
+- Incoming-invoice listing/detail and bounded duplicate-candidate detection.
+- Vendor and customer open-item reads plus overdue summaries.
+- Purchase-order delivery schedules, confirmations and receipt/invoice totals.
+- Governed vendor and customer master summaries.
+- Real AI Agent, email and approval workflows using only fixed aliases.
 - Optional metrics endpoint without user data or SAP credentials.
 - Operation-specific concurrency and rate limits.
 - Optional governed snapshot adapter for historical SU01 reporting.

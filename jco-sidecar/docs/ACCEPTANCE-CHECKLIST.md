@@ -1,6 +1,6 @@
 # Acceptance checklist
 
-- [ ] Standard BAPIs are verified in the target SAP system/client.
+- [x] Enabled standard BAPIs are verified in A4H/250 before mapping.
 - [x] Server reaches SAP dispatcher `3288` and gateway `3388`.
 - [x] Sidecar image builds on Linux x86-64 with glibc.
 - [x] Unit and HTTP contract tests pass.
@@ -9,13 +9,18 @@
 - [x] No host port is published.
 - [x] n8n and SAP credentials remain separated.
 - [x] The synthetic contract remains independent.
-- [ ] SAP JCo 3.1.13 Linux x86-64 archive is downloaded and installed.
+- [x] SAP JCo 3.1.13 Linux x86-64 archive is downloaded and installed outside the repository.
 - [ ] Dedicated SAP technical user and least-privilege role are created.
 - [ ] `STAUTHTRACE` positive and negative evidence is captured.
-- [ ] Sidecar health identifies the approved target system/client.
-- [ ] Three-user governed smoke test returns `source=sap-jco`.
-- [ ] Internal CA is mounted into n8n with `NODE_EXTRA_CA_CERTS`.
-- [ ] A separate real n8n credential is created with TLS validation enabled.
-- [ ] Six cloned `REAL` workflows execute and remain inactive.
-- [ ] Sample results are compared with SU01.
-- [ ] Backup and rollback evidence is recorded.
+- [x] Sidecar health identifies A4H/250 and SAP release 754.
+- [x] Governed smoke tests return `source=sap-jco` and `syntheticData=false`.
+- [x] Internal CA is mounted into n8n with `NODE_EXTRA_CA_CERTS`.
+- [x] A separate real n8n credential is created with TLS validation enabled.
+- [x] Read-only real-SAP workflows are imported and remain inactive outside manual tests.
+- [x] SU01 read results were checked in the target test system.
+- [x] Backup and rollback evidence is recorded.
+- [x] One isolated, approval-gated Communication-user creation completed and was verified.
+- [ ] Demonstration user is blocked or removed after testing.
+- [ ] Test passwords and tokens are rotated.
+- [ ] Positive purchase-order and sales-order reads are executed with approved document IDs.
+- [ ] Message-server/load-balanced destination mode is verified.

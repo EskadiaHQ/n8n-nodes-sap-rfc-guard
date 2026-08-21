@@ -8,7 +8,7 @@ export class SapRfcGuardApi implements ICredentialType {
 	icon = 'file:sapRfcGuardCredential.svg' as const;
 
 	documentationUrl =
-		'https://github.com/Logali-Group/n8n-nodes-sap-rfc-guard#credential-configuration';
+		'https://github.com/EskadiaHQ/n8n-nodes-sap-rfc-guard#credential-configuration';
 
 	properties: INodeProperties[] = [
 		{

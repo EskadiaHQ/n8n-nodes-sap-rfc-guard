@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-sap-rfc-guard",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Logali SAP RFC Guard: governed SAP business BAPI reads and isolated user provisioning for self-hosted n8n",
 	"license": "MIT",
 	"keywords": [

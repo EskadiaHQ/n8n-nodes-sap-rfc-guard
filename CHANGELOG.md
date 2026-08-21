@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 - 2026-08-21
+
+- Correct the credential and node documentation links to the public `EskadiaHQ` repository.
+- Refresh the roadmap and real-SAP acceptance report after the first controlled A4H/250 executions.
+- Keep this patch release limited to documentation and package metadata; the next business aliases remain scheduled for `0.4.0`.
+
 ## 0.3.0 - 2026-08-21
 
 - Add first-class Company Code, Material, Purchase Order and Sales Order resources to the n8n UI.
