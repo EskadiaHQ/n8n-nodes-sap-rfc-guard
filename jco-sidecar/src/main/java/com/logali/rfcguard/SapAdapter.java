@@ -9,6 +9,10 @@ interface SapAdapter extends AutoCloseable {
   Backend backend();
   List<UserRecord> listUsers(Map<String, Object> parameters);
   List<UserRecord> getUser(String username);
+  default List<Map<String, Object>> executeBusinessRead(
+      String operation, Map<String, Object> parameters) {
+    throw new IllegalArgumentException("OPERATION_NOT_ALLOWED");
+  }
   default Map<String, Object> createCommunicationUser(Map<String, Object> parameters) {
     throw new IllegalArgumentException("USER_CREATION_DISABLED");
   }

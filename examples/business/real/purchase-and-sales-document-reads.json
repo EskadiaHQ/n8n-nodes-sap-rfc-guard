@@ -1,0 +1,67 @@
+{
+  "id": "SapRfcDocumentRead1",
+  "name": "415 · RFC Guard · REAL SAP · Purchase and Sales Document Reads",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "537ed137-e7a9-4408-a32d-ee4f4689e89e",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "purchaseOrder",
+        "operation": "getDetails",
+        "purchaseOrderId": "REPLACE_WITH_PURCHASE_ORDER",
+        "correlationId": "bapi-purchase-order-detail-demo",
+        "limit": 25,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [300, -100],
+      "id": "d4069d8d-73cb-4ee9-8ebf-f95542768388",
+      "name": "Get Purchase Order Details"
+    },
+    {
+      "parameters": {
+        "resource": "salesOrder",
+        "operation": "getStatus",
+        "salesDocumentId": "REPLACE_WITH_SALES_DOCUMENT",
+        "correlationId": "bapi-sales-order-status-demo",
+        "limit": 25,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [300, 100],
+      "id": "8d0290df-1387-47f7-b782-b7b85726cf0a",
+      "name": "Get Sales Order Status"
+    },
+    {
+      "parameters": {
+        "content": "## Real document reads require approved document IDs\n\nReplace each placeholder with a document that exists in the target client. These nodes are read-only, but they deliberately fail validation while the placeholders remain. No test document is created automatically.\n\nKeep inactive and unavailable in MCP."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -260],
+      "id": "1d2c6f30-e806-44c5-aad0-f6fe11c03a96",
+      "name": "Document ID Required"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[
+        {"node": "Get Purchase Order Details", "type": "main", "index": 0},
+        {"node": "Get Sales Order Status", "type": "main", "index": 0}
+      ]]
+    }
+  },
+  "settings": {"executionOrder": "v1", "binaryMode": "separate", "availableInMCP": false},
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.0 - 2026-08-21
+
+- Add first-class Company Code, Material, Purchase Order and Sales Order resources to the n8n UI.
+- Add six fixed read aliases backed by `BAPI_COMPANYCODE_GETLIST`, `BAPI_COMPANYCODE_GETDETAIL`, `BAPI_MATERIAL_GETLIST`, `BAPI_MATERIAL_GET_DETAIL`, `BAPI_PO_GETDETAIL1` and `BAPI_SALESORDER_GETSTATUS`.
+- Verify every BAPI and its exact signature in A4H/250 before exposing the alias.
+- Keep technical function names compiled into the sidecar and continue rejecting them as workflow input.
+- Add identifier validation, bounded material search and field-minimized responses for each business object.
+- Add real-SAP workflows for company/material reads and placeholder-gated purchasing/sales document reads.
+- Document the difference between callable BAPIs and internal BAdI enhancement points.
+
 ## 0.2.0 - 2026-08-21
 
 - Add a separately configured `User Administration / Create Communication User` operation.

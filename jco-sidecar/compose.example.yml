@@ -2,7 +2,7 @@ name: logali-sap-rfc-guard
 
 services:
   sap-rfc-guard:
-    image: logali-sap-rfc-guard-jco:0.2.0
+    image: logali-sap-rfc-guard-jco:0.3.0
     container_name: sap-rfc-guard-jco
     restart: unless-stopped
     working_dir: /tmp

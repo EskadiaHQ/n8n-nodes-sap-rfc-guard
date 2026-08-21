@@ -60,6 +60,15 @@ function correlationId(value: string): string {
 	return normalized;
 }
 
+function setOptionalParameter(
+	parameters: Record<string, unknown>,
+	name: string,
+	value: unknown,
+): void {
+	const normalized = String(value ?? '').trim();
+	if (normalized !== '') parameters[name] = normalized;
+}
+
 export class SapRfcGuard implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'Logali SAP RFC Guard',
@@ -92,8 +101,12 @@ export class SapRfcGuard implements INodeType {
 				type: 'options',
 				noDataExpression: true,
 				options: [
+					{ name: 'Company Code', value: 'companyCode' },
 					{ name: 'Connection', value: 'connection' },
+					{ name: 'Material', value: 'material' },
+					{ name: 'Purchase Order', value: 'purchaseOrder' },
 					{ name: 'Read Operation', value: 'readOperation' },
+					{ name: 'Sales Order', value: 'salesOrder' },
 					{ name: 'User Administration', value: 'userAdministration' },
 				],
 				default: 'connection',
@@ -114,6 +127,161 @@ export class SapRfcGuard implements INodeType {
 					},
 				],
 				default: 'createCommunicationUser',
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['companyCode'] } },
+				options: [
+					{
+						name: 'Get Details',
+						value: 'getDetails',
+						action: 'Get company code details',
+						description: 'Uses the fixed BAPI_COMPANYCODE_GETDETAIL mapping',
+					},
+					{
+						name: 'Get Many',
+						value: 'getMany',
+						action: 'List company codes',
+						description: 'Uses the fixed BAPI_COMPANYCODE_GETLIST mapping',
+					},
+				],
+				default: 'getMany',
+			},
+			{
+				displayName: 'Company Code',
+				name: 'companyCode',
+				type: 'string',
+				default: '',
+				placeholder: '1000',
+				required: true,
+				displayOptions: { show: { resource: ['companyCode'], operation: ['getDetails'] } },
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['material'] } },
+				options: [
+					{
+						name: 'Get Details',
+						value: 'getDetails',
+						action: 'Get material details',
+						description: 'Uses the fixed BAPI_MATERIAL_GET_DETAIL mapping',
+					},
+					{
+						name: 'Search',
+						value: 'search',
+						action: 'Search materials',
+						description: 'Uses the fixed BAPI_MATERIAL_GETLIST mapping with a row limit',
+					},
+				],
+				default: 'search',
+			},
+			{
+				displayName: 'Material Pattern',
+				name: 'materialPattern',
+				type: 'string',
+				default: '',
+				placeholder: 'TG*',
+				description: 'Optional SAP-style material pattern; use * as the wildcard',
+				displayOptions: { show: { resource: ['material'], operation: ['search'] } },
+			},
+			{
+				displayName: 'Description Contains',
+				name: 'descriptionPattern',
+				type: 'string',
+				default: '',
+				placeholder: 'bike',
+				description: 'Optional text filter; wildcards are added when omitted',
+				displayOptions: { show: { resource: ['material'], operation: ['search'] } },
+			},
+			{
+				displayName: 'Material',
+				name: 'materialId',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: { show: { resource: ['material'], operation: ['getDetails'] } },
+			},
+			{
+				displayName: 'Plant',
+				name: 'plant',
+				type: 'string',
+				default: '',
+				placeholder: '1000',
+				description: 'Optional plant for plant-specific material data',
+				displayOptions: { show: { resource: ['material'], operation: ['getDetails'] } },
+			},
+			{
+				displayName: 'Valuation Area',
+				name: 'valuationArea',
+				type: 'string',
+				default: '',
+				placeholder: '1000',
+				description: 'Optional valuation area for price data',
+				displayOptions: { show: { resource: ['material'], operation: ['getDetails'] } },
+			},
+			{
+				displayName: 'Valuation Type',
+				name: 'valuationType',
+				type: 'string',
+				default: '',
+				description: 'Optional split-valuation type',
+				displayOptions: { show: { resource: ['material'], operation: ['getDetails'] } },
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['purchaseOrder'] } },
+				options: [
+					{
+						name: 'Get Details',
+						value: 'getDetails',
+						action: 'Get purchase order details',
+						description: 'Uses the fixed BAPI_PO_GETDETAIL1 mapping',
+					},
+				],
+				default: 'getDetails',
+			},
+			{
+				displayName: 'Purchase Order',
+				name: 'purchaseOrderId',
+				type: 'string',
+				default: '',
+				placeholder: '4500000001',
+				required: true,
+				displayOptions: { show: { resource: ['purchaseOrder'] } },
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['salesOrder'] } },
+				options: [
+					{
+						name: 'Get Status',
+						value: 'getStatus',
+						action: 'Get sales order status',
+						description: 'Uses the fixed BAPI_SALESORDER_GETSTATUS mapping',
+					},
+				],
+				default: 'getStatus',
+			},
+			{
+				displayName: 'Sales Document',
+				name: 'salesDocumentId',
+				type: 'string',
+				default: '',
+				placeholder: '5000000001',
+				required: true,
+				displayOptions: { show: { resource: ['salesOrder'] } },
 			},
 			{
 				displayName: 'SAP Username',
@@ -229,7 +397,14 @@ export class SapRfcGuard implements INodeType {
 				default: '',
 				placeholder: 'Generated automatically when empty',
 				description: 'Trace identifier shared by n8n, the sidecar, and SAP logs',
-				displayOptions: { show: { resource: ['readOperation', 'userAdministration'] } },
+				displayOptions: {
+					show: {
+						resource: [
+							'readOperation', 'userAdministration', 'companyCode', 'material',
+							'purchaseOrder', 'salesOrder',
+						],
+					},
+				},
 			},
 			{
 				displayName: 'Row Limit',
@@ -238,7 +413,9 @@ export class SapRfcGuard implements INodeType {
 				typeOptions: { minValue: 1, maxValue: 1000 },
 				default: 50,
 				description: 'Max number of results to return',
-				displayOptions: { show: { resource: ['readOperation'] } },
+				displayOptions: {
+					show: { resource: ['readOperation', 'companyCode', 'material', 'purchaseOrder', 'salesOrder'] },
+				},
 			},
 			{
 				displayName: 'Include Result Metadata',
@@ -246,7 +423,9 @@ export class SapRfcGuard implements INodeType {
 				type: 'boolean',
 				default: true,
 				description: 'Whether to include operation, correlation, limit, and read-only evidence',
-				displayOptions: { show: { resource: ['readOperation'] } },
+				displayOptions: {
+					show: { resource: ['readOperation', 'companyCode', 'material', 'purchaseOrder', 'salesOrder'] },
+				},
 			},
 		],
 	};
@@ -367,17 +546,79 @@ export class SapRfcGuard implements INodeType {
 					continue;
 				}
 
-				const operation = assertOperationId(
-					this.getNodeParameter('businessOperationId', itemIndex) as string,
-				);
-				const allowedOperations = parseAllowedOperations(credentials.allowedOperations);
-				assertOperationAllowed(operation, allowedOperations);
-				const fieldPolicies = parseDataFieldPolicies(credentials.dataFieldPoliciesJson);
-				const allowedFields = allowedDataFieldsForOperation(operation, fieldPolicies);
-				const parameters = parseParametersJson(
-					this.getNodeParameter('parametersJson', itemIndex, '{}') as string,
-				);
-				enforceSerializedByteLimit(
+					let operation: string;
+					let parameters: Record<string, unknown>;
+					const requestedLimit = this.getNodeParameter('limit', itemIndex, 50) as number;
+					if (resource === 'readOperation') {
+						operation = assertOperationId(
+							this.getNodeParameter('businessOperationId', itemIndex) as string,
+						);
+						parameters = parseParametersJson(
+							this.getNodeParameter('parametersJson', itemIndex, '{}') as string,
+						);
+					} else if (resource === 'companyCode') {
+						const selected = this.getNodeParameter('operation', itemIndex) as string;
+						operation = selected === 'getDetails' ? 'getCompanyCodeDetail' : 'listCompanyCodes';
+						parameters = {};
+						if (selected === 'getDetails') {
+							parameters.companyCode = String(
+								this.getNodeParameter('companyCode', itemIndex),
+							).trim().toUpperCase();
+						}
+					} else if (resource === 'material') {
+						const selected = this.getNodeParameter('operation', itemIndex) as string;
+						operation = selected === 'getDetails' ? 'getMaterialDetail' : 'searchMaterials';
+						parameters = {};
+						if (selected === 'getDetails') {
+							parameters.material = String(
+								this.getNodeParameter('materialId', itemIndex),
+							).trim().toUpperCase();
+							setOptionalParameter(parameters, 'plant', this.getNodeParameter('plant', itemIndex, ''));
+							setOptionalParameter(
+								parameters,
+								'valuationArea',
+								this.getNodeParameter('valuationArea', itemIndex, ''),
+							);
+							setOptionalParameter(
+								parameters,
+								'valuationType',
+								this.getNodeParameter('valuationType', itemIndex, ''),
+							);
+						} else {
+							parameters.maxRows = Math.min(requestedLimit, Number(credentials.maxRows));
+							setOptionalParameter(
+								parameters,
+								'materialPattern',
+								this.getNodeParameter('materialPattern', itemIndex, ''),
+							);
+							setOptionalParameter(
+								parameters,
+								'descriptionPattern',
+								this.getNodeParameter('descriptionPattern', itemIndex, ''),
+							);
+						}
+					} else if (resource === 'purchaseOrder') {
+						operation = 'getPurchaseOrderDetail';
+						parameters = {
+							purchaseOrder: String(
+								this.getNodeParameter('purchaseOrderId', itemIndex),
+							).trim(),
+						};
+					} else if (resource === 'salesOrder') {
+						operation = 'getSalesOrderStatus';
+						parameters = {
+							salesDocument: String(
+								this.getNodeParameter('salesDocumentId', itemIndex),
+							).trim(),
+						};
+					} else {
+						throw new OperationalError('Unsupported SAP RFC Guard resource.');
+					}
+					const allowedOperations = parseAllowedOperations(credentials.allowedOperations);
+					assertOperationAllowed(operation, allowedOperations);
+					const fieldPolicies = parseDataFieldPolicies(credentials.dataFieldPoliciesJson);
+					const allowedFields = allowedDataFieldsForOperation(operation, fieldPolicies);
+					enforceSerializedByteLimit(
 					parameters,
 					Number(credentials.maxRequestBytes),
 					'Operation parameters',
@@ -402,7 +643,7 @@ export class SapRfcGuard implements INodeType {
 					operation,
 					traceId,
 					allowedFields,
-					this.getNodeParameter('limit', itemIndex, 50) as number,
+						requestedLimit,
 					Number(credentials.maxRows),
 					this.getNodeParameter('includeMetadata', itemIndex, true) as boolean,
 				);

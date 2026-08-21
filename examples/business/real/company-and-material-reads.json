@@ -1,0 +1,102 @@
+{
+  "id": "SapRfcBusinessRead1",
+  "name": "415 · RFC Guard · REAL SAP · Company and Material Reads",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "8a2bf150-c582-4789-b784-9f7f893e88ab",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "companyCode",
+        "operation": "getMany",
+        "correlationId": "bapi-company-list-demo",
+        "limit": 10,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [300, -180],
+      "id": "3051b5c5-6664-4ec3-aa28-f71dd17b9ca5",
+      "name": "List Company Codes"
+    },
+    {
+      "parameters": {
+        "resource": "companyCode",
+        "operation": "getDetails",
+        "companyCode": "1010",
+        "correlationId": "bapi-company-detail-demo",
+        "limit": 1,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [300, -60],
+      "id": "a19f2384-a322-437f-a79a-8cab60706e04",
+      "name": "Get Company Code Details"
+    },
+    {
+      "parameters": {
+        "resource": "material",
+        "operation": "search",
+        "materialPattern": "TG*",
+        "descriptionPattern": "",
+        "correlationId": "bapi-material-search-demo",
+        "limit": 5,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [300, 60],
+      "id": "c2f6d49a-25df-4f3f-b7cf-3f2ef25ea0b9",
+      "name": "Search Materials"
+    },
+    {
+      "parameters": {
+        "resource": "material",
+        "operation": "getDetails",
+        "materialId": "TG0001",
+        "plant": "",
+        "valuationArea": "",
+        "valuationType": "",
+        "correlationId": "bapi-material-detail-demo",
+        "limit": 1,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [300, 180],
+      "id": "265589bc-f64c-40cb-824a-02910ec7105a",
+      "name": "Get Material Details"
+    },
+    {
+      "parameters": {
+        "content": "## Four real, read-only BAPI examples\n\nEach node selects a business operation in the UI; the technical BAPI is fixed inside the sidecar. The examples use company code `1010`, material pattern `TG*` and material `TG0001` from the A4H/250 test system.\n\nKeep inactive and unavailable in MCP. Select the operated read-only credential after import."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -300],
+      "id": "b01884e3-1af6-4c2f-b1f6-793df64affca",
+      "name": "Read-only Test Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[
+        {"node": "List Company Codes", "type": "main", "index": 0},
+        {"node": "Get Company Code Details", "type": "main", "index": 0},
+        {"node": "Search Materials", "type": "main", "index": 0},
+        {"node": "Get Material Details", "type": "main", "index": 0}
+      ]]
+    }
+  },
+  "settings": {"executionOrder": "v1", "binaryMode": "separate", "availableInMCP": false},
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

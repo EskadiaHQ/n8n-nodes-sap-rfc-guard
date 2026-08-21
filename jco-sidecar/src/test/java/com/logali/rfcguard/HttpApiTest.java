@@ -65,6 +65,18 @@ final class HttpApiTest {
     assertTrue(response.body().contains("\"syntheticData\":false"));
   }
 
+  @Test void exposesAndExecutesOnlyTheNewBusinessAliasesInsteadOfBapiNames() throws Exception {
+    var health = send("GET", "/v1/health", null, TOKEN);
+    assertTrue(health.body().contains("listCompanyCodes"));
+    assertTrue(health.body().contains("getPurchaseOrderDetail"));
+    assertTrue(!health.body().contains("BAPI_COMPANYCODE_GETLIST"));
+    var response = send("POST", "/v1/operations/getCompanyCodeDetail/execute",
+        "{\"operation\":\"getCompanyCodeDetail\",\"parameters\":{\"companyCode\":\"1000\"},"
+            + "\"context\":{\"readOnly\":true}}", TOKEN);
+    assertEquals(200, response.statusCode());
+    assertTrue(response.body().contains("getCompanyCodeDetail"));
+  }
+
   @Test void timesOutAStalledSapRead() throws Exception {
     api.close();
     var configuration = new Configuration(port, TOKEN, "TEST", 50, 90, 1, "", "", Map.of());
@@ -117,6 +129,10 @@ final class HttpApiTest {
     @Override public Backend backend() { return new Backend("S4D", "100", "sap.example", "2025"); }
     @Override public List<UserRecord> listUsers(Map<String, Object> ignored) { return List.of(user("TEST_USER")); }
     @Override public List<UserRecord> getUser(String username) { return List.of(user(username)); }
+    @Override public List<Map<String, Object>> executeBusinessRead(
+        String operation, Map<String, Object> parameters) {
+      return List.of(Map.of("operation", operation, "companyCode", parameters.getOrDefault("companyCode", "")));
+    }
     @Override public Map<String, Object> createCommunicationUser(Map<String, Object> parameters) {
       return Map.of("username", parameters.get("username"), "created", true,
           "userType", "Communication", "rolesAssigned", 0, "profilesAssigned", 0);

@@ -3,7 +3,7 @@
 Security-first n8n community node for governed SAP RFC/BAPI reads and isolated
 Communication-user provisioning.
 
-> **Early access (`0.2.x`)**: the n8n governance contract and synthetic examples
+> **Early access (`0.3.x`)**: the n8n governance contract and synthetic examples
 > are testable now. Real SAP execution additionally requires the operated JCo
 > sidecar, SAP's proprietary JCo runtime and a least-privilege SAP identity.
 
@@ -43,7 +43,7 @@ X-RFC-Guard-Mode: read-only
 {
   "status": "ok",
   "service": "sap-rfc-guard-jco",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "backend": { "systemId": "S4D", "client": "100" },
   "capabilities": { "readOnly": true, "operations": ["listSu01Users"] }
 }
@@ -139,10 +139,21 @@ listSu01Users, getSu01UserDetail
 ## Operations
 
 - **Connection / Test Connection** checks authentication and the capability expected by the selected credential mode.
+- **Company Code / Get Many** maps to `BAPI_COMPANYCODE_GETLIST`.
+- **Company Code / Get Details** maps to `BAPI_COMPANYCODE_GETDETAIL`.
+- **Material / Search** maps to bounded `BAPI_MATERIAL_GETLIST`.
+- **Material / Get Details** maps to `BAPI_MATERIAL_GET_DETAIL`.
+- **Purchase Order / Get Details** maps to `BAPI_PO_GETDETAIL1`.
+- **Sales Order / Get Status** maps to `BAPI_SALESORDER_GETSTATUS`.
 - **Read Operation / Execute Approved Read** runs one credential-allowlisted business operation.
 - **User Administration / Create Communication User** calls the isolated provisioning sidecar
   after an exact `CREATE <username>` confirmation. It maps only to `BAPI_USER_CREATE1` and does
   not accept technical function names, roles, profiles or password input from a workflow.
+
+The visible operation description states which fixed BAPI is used, but the BAPI
+name is never editable. See [`docs/BAPI-VS-BADI.md`](docs/BAPI-VS-BADI.md) for
+the distinction between an external business interface and an internal SAP
+enhancement point.
 
 The node is intentionally separate from Logali HANA Guard. They share governance principles but
 use different transports: HANA Guard speaks HANA SQL; SAP RFC Guard speaks HTTPS to an RFC
@@ -151,9 +162,9 @@ sidecar.
 ## Compatibility and optional snapshot
 
 The transport does not require HANA. It can target compatible SAP R/3, ECC and
-S/4HANA systems, but the two standard BAPIs and their exact structures must be
-checked in each target release. SAP documents `BAPI_USER_GETLIST` from release
-6.20; older R/3 systems may require a narrowly scoped custom read RFC. See
+S/4HANA systems, but every enabled BAPI and its exact structure must be checked
+in each target release. SAP documents `BAPI_USER_GETLIST` from release 6.20;
+older R/3 systems may require a narrowly scoped custom read RFC. See
 [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md).
 
 Current SU01 data should normally be read from the standard BAPIs. When a
@@ -178,6 +189,10 @@ Never reuse the fixture token or the insecure HTTP option for a real SAP connect
 technical users, locked/expired/inactive accounts, one governed user detail, account-status
 summary, last-logon review and system readiness. Their JSON files contain no credential IDs or
 internal URLs. Expected results and business aliases are listed in `examples/su01/README.md`.
+
+`examples/business/real/` adds first-class company, material, purchase-order and
+sales-order examples. Document workflows contain placeholders and fail input
+validation until an approved ID from the target client is supplied.
 
 ## Real SAP JCo sidecar
 

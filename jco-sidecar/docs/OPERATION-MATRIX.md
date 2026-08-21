@@ -1,4 +1,4 @@
-# Governed SU01 operation matrix
+# Governed operation matrix
 
 | Business alias | Internal SAP call | Input | Output | Limit |
 |---|---|---|---|---|
@@ -6,6 +6,12 @@
 | `getSu01UserDetail` | `BAPI_USER_GET_DETAIL` | `client`, `username` | One approved user record | One user |
 | `listSu01RiskAccounts` | Same governed list, classified locally | `client`, `maxRows`, `inactiveDays` | Non-active accounts plus `riskReason` | Same list ceiling |
 | `summarizeSu01Accounts` | Same governed list, aggregated locally | `client`, `maxRows`, `inactiveDays`, `dimension` | Counts only | Same list ceiling |
+| `listCompanyCodes` | `BAPI_COMPANYCODE_GETLIST` | `client` | Company code and name | Sidecar row ceiling |
+| `getCompanyCodeDetail` | `BAPI_COMPANYCODE_GETDETAIL` | `client`, `companyCode` | Approved organization, locale and address fields | One company code |
+| `searchMaterials` | `BAPI_MATERIAL_GETLIST` | `client`, `maxRows`, `materialPattern`, `descriptionPattern` | Material number and description | Caller and sidecar row ceiling |
+| `getMaterialDetail` | `BAPI_MATERIAL_GET_DETAIL` | `client`, `material`, optional `plant`, `valuationArea`, `valuationType` | Approved general, plant and valuation fields | One material context |
+| `getPurchaseOrderDetail` | `BAPI_PO_GETDETAIL1` | `client`, `purchaseOrder` | Approved header fields repeated with bounded item fields | One document, bounded items |
+| `getSalesOrderStatus` | `BAPI_SALESORDER_GETSTATUS` | `client`, `salesDocument` | Approved header/item status and delivery fields | One document, bounded items |
 | `createSu01CommunicationUser` | `BAPI_USER_CREATE1` + `BAPI_TRANSACTION_COMMIT` + governed detail verification | `client`, `username`, `firstName`, `lastName`, `email`, `validDays` | Creation and verification evidence only | One prefix-restricted Communication user |
 
 The HTTP caller cannot select an RFC function. RFC names exist only inside the

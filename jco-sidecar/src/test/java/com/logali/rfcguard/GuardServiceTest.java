@@ -62,6 +62,35 @@ final class GuardServiceTest {
             "email", "not-an-email"))).getMessage());
   }
 
+  @Test void routesTheSixFixedBusinessBapiAliases() {
+    var service = new GuardService(new StubAdapter());
+    assertEquals("listCompanyCodes", service.execute("listCompanyCodes", Map.of()).getFirst().get("operation"));
+    assertEquals("getCompanyCodeDetail", service.execute(
+        "getCompanyCodeDetail", Map.of("companyCode", "1000")).getFirst().get("operation"));
+    assertEquals("searchMaterials", service.execute(
+        "searchMaterials", Map.of("maxRows", 10, "materialPattern", "TG*")).getFirst().get("operation"));
+    assertEquals("getMaterialDetail", service.execute(
+        "getMaterialDetail", Map.of("material", "TG11", "plant", "1000")).getFirst().get("operation"));
+    assertEquals("getPurchaseOrderDetail", service.execute(
+        "getPurchaseOrderDetail", Map.of("purchaseOrder", "4500000001")).getFirst().get("operation"));
+    assertEquals("getSalesOrderStatus", service.execute(
+        "getSalesOrderStatus", Map.of("salesDocument", "5000000001")).getFirst().get("operation"));
+  }
+
+  @Test void rejectsInvalidBusinessIdentifiersBeforeCallingSap() {
+    var service = new GuardService(new StubAdapter());
+    assertEquals("COMPANY_CODE_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("getCompanyCodeDetail", Map.of("companyCode", "1 OR 1"))).getMessage());
+    assertEquals("MATERIAL_PATTERN_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("searchMaterials", Map.of("materialPattern", "*'; delete"))).getMessage());
+    assertEquals("MATERIAL_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("getMaterialDetail", Map.of("material", "bad value"))).getMessage());
+    assertEquals("PURCHASE_ORDER_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("getPurchaseOrderDetail", Map.of("purchaseOrder", "PO-1"))).getMessage());
+    assertEquals("SALES_DOCUMENT_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("getSalesOrderStatus", Map.of("salesDocument", "../1"))).getMessage());
+  }
+
   private static final class StubAdapter implements SapAdapter {
     @Override public void ping() {}
     @Override public Backend backend() { return new Backend("S4D", "100", "sap", "2025"); }
@@ -69,6 +98,10 @@ final class GuardServiceTest {
       return List.of(user("ACTIVE", "Active", ""), user("LOCKED", "Locked", "account_locked"));
     }
     @Override public List<UserRecord> getUser(String username) { return List.of(user(username, "Active", "")); }
+    @Override public List<Map<String, Object>> executeBusinessRead(
+        String operation, Map<String, Object> parameters) {
+      return List.of(Map.of("operation", operation));
+    }
     @Override public Map<String, Object> createCommunicationUser(Map<String, Object> parameters) {
       return Map.of("username", parameters.get("username"), "created", true);
     }

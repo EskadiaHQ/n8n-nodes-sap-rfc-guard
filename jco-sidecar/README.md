@@ -23,6 +23,12 @@ repository and from the container image.
 - `getSu01UserDetail` uses `BAPI_USER_GET_DETAIL`.
 - `listSu01RiskAccounts` classifies the governed result in the sidecar.
 - `summarizeSu01Accounts` aggregates the governed result in the sidecar.
+- `listCompanyCodes` uses `BAPI_COMPANYCODE_GETLIST`.
+- `getCompanyCodeDetail` uses `BAPI_COMPANYCODE_GETDETAIL`.
+- `searchMaterials` uses bounded `BAPI_MATERIAL_GETLIST`.
+- `getMaterialDetail` uses `BAPI_MATERIAL_GET_DETAIL`.
+- `getPurchaseOrderDetail` uses `BAPI_PO_GETDETAIL1` for one document.
+- `getSalesOrderStatus` uses `BAPI_SALESORDER_GETSTATUS` for one document.
 - `createSu01CommunicationUser` uses `BAPI_USER_CREATE1`, commits explicitly and
   reads the account back for verification.
 
@@ -36,7 +42,7 @@ returns `SAP_READ_TIMEOUT` instead of holding the n8n request indefinitely.
 ## Build and test
 
 ```bash
-docker build -t logali-sap-rfc-guard-jco:0.2.0 .
+docker build -t logali-sap-rfc-guard-jco:0.3.0 .
 ```
 
 The image build runs the unit tests. It does not need the proprietary JCo files;

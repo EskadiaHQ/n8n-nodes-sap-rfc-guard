@@ -87,7 +87,7 @@ final class HttpApi implements AutoCloseable {
       boolean provisioning = "user-provisioning".equals(configuration.mode());
       response(exchange, 200, Map.of(
           "status", "ok", "service", provisioning
-              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.2.0",
+              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.3.0",
           "backend", backendMap(backend),
           "capabilities", Map.of(
               "readOnly", !provisioning,
@@ -240,6 +240,15 @@ final class HttpApi implements AutoCloseable {
       case "USER_TYPE_INVALID" -> "userType is not one of the governed SU01 user types.";
       case "ACCOUNT_STATUS_INVALID" -> "accountStatus is not one of the governed account states.";
       case "DIMENSION_INVALID" -> "dimension must be accountStatus or userType.";
+      case "COMPANY_CODE_INVALID" -> "companyCode must contain exactly four letters or numbers.";
+      case "MATERIAL_PATTERN_INVALID" -> "materialPattern contains unsupported characters or is too long.";
+      case "DESCRIPTION_PATTERN_INVALID" -> "descriptionPattern must contain 1-40 characters when supplied.";
+      case "MATERIAL_INVALID" -> "material contains unsupported characters or is too long.";
+      case "PLANT_INVALID" -> "plant must contain 1-4 letters or numbers.";
+      case "VALUATION_AREA_INVALID" -> "valuationArea must contain 1-4 letters or numbers.";
+      case "VALUATION_TYPE_INVALID" -> "valuationType contains unsupported characters or is too long.";
+      case "PURCHASE_ORDER_INVALID" -> "purchaseOrder must contain 1-10 digits.";
+      case "SALES_DOCUMENT_INVALID" -> "salesDocument must contain 1-10 digits.";
       case "SAP_READ_TIMEOUT" -> "SAP did not complete the governed read within the configured limit.";
       case "REQUEST_INTERRUPTED" -> "The governed read was interrupted before completion.";
       case "SAP_READ_FAILED" -> "SAP could not complete the governed read.";

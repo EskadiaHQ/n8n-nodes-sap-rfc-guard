@@ -9,15 +9,23 @@ import java.util.Set;
 
 final class GuardService {
   static final Set<String> READ_OPERATIONS = Set.of(
-      "listSu01Users", "getSu01UserDetail", "listSu01RiskAccounts", "summarizeSu01Accounts");
+      "listSu01Users", "getSu01UserDetail", "listSu01RiskAccounts", "summarizeSu01Accounts",
+      "listCompanyCodes", "getCompanyCodeDetail", "searchMaterials", "getMaterialDetail",
+      "getPurchaseOrderDetail", "getSalesOrderStatus");
   static final Set<String> WRITE_OPERATIONS = Set.of("createSu01CommunicationUser");
-  private static final Map<String, Set<String>> PARAMETERS = Map.of(
-      "listSu01Users", Set.of("client", "maxRows", "inactiveDays", "userType", "accountStatus"),
-      "getSu01UserDetail", Set.of("client", "username"),
-      "listSu01RiskAccounts", Set.of("client", "maxRows", "inactiveDays"),
-      "summarizeSu01Accounts", Set.of("client", "maxRows", "inactiveDays", "dimension"),
-      "createSu01CommunicationUser", Set.of(
-          "client", "username", "firstName", "lastName", "email", "validDays"));
+  private static final Map<String, Set<String>> PARAMETERS = Map.ofEntries(
+      Map.entry("listSu01Users", Set.of("client", "maxRows", "inactiveDays", "userType", "accountStatus")),
+      Map.entry("getSu01UserDetail", Set.of("client", "username")),
+      Map.entry("listSu01RiskAccounts", Set.of("client", "maxRows", "inactiveDays")),
+      Map.entry("summarizeSu01Accounts", Set.of("client", "maxRows", "inactiveDays", "dimension")),
+      Map.entry("listCompanyCodes", Set.of("client")),
+      Map.entry("getCompanyCodeDetail", Set.of("client", "companyCode")),
+      Map.entry("searchMaterials", Set.of("client", "maxRows", "materialPattern", "descriptionPattern")),
+      Map.entry("getMaterialDetail", Set.of("client", "material", "plant", "valuationArea", "valuationType")),
+      Map.entry("getPurchaseOrderDetail", Set.of("client", "purchaseOrder")),
+      Map.entry("getSalesOrderStatus", Set.of("client", "salesDocument")),
+      Map.entry("createSu01CommunicationUser", Set.of(
+          "client", "username", "firstName", "lastName", "email", "validDays")));
   private static final Set<String> USER_TYPES = Set.of(
       "Dialog", "System", "Communication", "Reference", "Service");
   private static final Set<String> ACCOUNT_STATUSES = Set.of(
@@ -34,6 +42,9 @@ final class GuardService {
       case "listSu01RiskAccounts" -> maps(adapter.listUsers(parameters).stream()
           .filter(user -> !"Active".equals(user.accountStatus())).toList(), true);
       case "summarizeSu01Accounts" -> summarize(adapter.listUsers(parameters), parameters);
+      case "listCompanyCodes", "getCompanyCodeDetail", "searchMaterials", "getMaterialDetail",
+          "getPurchaseOrderDetail", "getSalesOrderStatus" ->
+          adapter.executeBusinessRead(operation, parameters);
       case "createSu01CommunicationUser" -> List.of(adapter.createCommunicationUser(parameters));
       default -> throw new IllegalArgumentException("OPERATION_NOT_ALLOWED");
     };
@@ -66,6 +77,27 @@ final class GuardService {
       throw new IllegalArgumentException("DIMENSION_INVALID");
     }
     if ("getSu01UserDetail".equals(operation)) requiredUsername(parameters);
+    if ("getCompanyCodeDetail".equals(operation)) {
+      requiredPattern(parameters, "companyCode", "[A-Za-z0-9]{4}", "COMPANY_CODE_INVALID");
+    }
+    if ("searchMaterials".equals(operation)) {
+      optionalPattern(parameters, "materialPattern", "[A-Za-z0-9*+._/@\\-]{1,40}",
+          "MATERIAL_PATTERN_INVALID");
+      optionalText(parameters, "descriptionPattern", 1, 40, "DESCRIPTION_PATTERN_INVALID");
+    }
+    if ("getMaterialDetail".equals(operation)) {
+      requiredPattern(parameters, "material", "[A-Za-z0-9+._/@\\-]{1,40}", "MATERIAL_INVALID");
+      optionalPattern(parameters, "plant", "[A-Za-z0-9]{1,4}", "PLANT_INVALID");
+      optionalPattern(parameters, "valuationArea", "[A-Za-z0-9]{1,4}", "VALUATION_AREA_INVALID");
+      optionalPattern(parameters, "valuationType", "[A-Za-z0-9._/@\\-]{1,10}",
+          "VALUATION_TYPE_INVALID");
+    }
+    if ("getPurchaseOrderDetail".equals(operation)) {
+      requiredPattern(parameters, "purchaseOrder", "[0-9]{1,10}", "PURCHASE_ORDER_INVALID");
+    }
+    if ("getSalesOrderStatus".equals(operation)) {
+      requiredPattern(parameters, "salesDocument", "[0-9]{1,10}", "SALES_DOCUMENT_INVALID");
+    }
     if ("createSu01CommunicationUser".equals(operation)) {
       requiredUsername(parameters);
       requiredText(parameters, "firstName", 1, 40, "FIRST_NAME_INVALID");
@@ -85,6 +117,30 @@ final class GuardService {
     if (raw == null) throw new IllegalArgumentException(errorCode);
     int length = raw.toString().trim().length();
     if (length < minimum || length > maximum) throw new IllegalArgumentException(errorCode);
+  }
+
+  private static void optionalText(
+      Map<String, Object> parameters, String key, int minimum, int maximum, String errorCode) {
+    Object raw = parameters.get(key);
+    if (raw == null || raw.toString().isBlank()) return;
+    int length = raw.toString().trim().length();
+    if (length < minimum || length > maximum) throw new IllegalArgumentException(errorCode);
+  }
+
+  private static void requiredPattern(
+      Map<String, Object> parameters, String key, String pattern, String errorCode) {
+    Object raw = parameters.get(key);
+    if (raw == null || !raw.toString().trim().matches(pattern)) {
+      throw new IllegalArgumentException(errorCode);
+    }
+  }
+
+  private static void optionalPattern(
+      Map<String, Object> parameters, String key, String pattern, String errorCode) {
+    Object raw = parameters.get(key);
+    if (raw != null && !raw.toString().isBlank() && !raw.toString().trim().matches(pattern)) {
+      throw new IllegalArgumentException(errorCode);
+    }
   }
 
   private static void optionalInteger(

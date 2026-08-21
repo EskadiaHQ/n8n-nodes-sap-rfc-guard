@@ -18,6 +18,11 @@ Before enabling a real credential, Basis must verify in the target system:
 4. The installed JCo package supports the server platform and Java runtime.
 5. The technical identity passes a positive trace for the two reads and a
    negative trace for an unrelated RFC and every user-maintenance BAPI.
+6. For business-data resources, verify the exact signatures and RFC flag of
+   `BAPI_COMPANYCODE_GETLIST`, `BAPI_COMPANYCODE_GETDETAIL`,
+   `BAPI_MATERIAL_GETLIST`, `BAPI_MATERIAL_GET_DETAIL`,
+   `BAPI_PO_GETDETAIL1` and `BAPI_SALESORDER_GETSTATUS`; enable only the aliases
+   actually authorized for that destination.
 
 SAP documents `BAPI_USER_GETLIST` as belonging to the R/3 user business object
 from release 6.20. Do not claim universal support for older R/3 releases. If the
