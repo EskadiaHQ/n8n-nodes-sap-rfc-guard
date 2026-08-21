@@ -1,0 +1,48 @@
+{
+  "id": "SapRfcStatusSummary1",
+  "name": "415 · RFC Guard · Account Status Summary",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "f80af182-36a6-462c-9e93-6283db5bc3a0",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "readOperation",
+        "businessOperationId": "summarizeSu01Accounts",
+        "parametersJson": "{\"client\":\"100\",\"dimension\":\"accountStatus\"}",
+        "limit": 20,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [260, 0],
+      "id": "c07d5733-b8fe-45be-b794-eca3c1aa9e76",
+      "name": "Summarize Account Status"
+    },
+    {
+      "parameters": {
+        "content": "## Account status summary\n\nGroups the fixture by **accountStatus** and returns **dimension → value → count** rows. Expected result: Active, Expired, Inactive and Locked.\n\nUse it as the starting point for a chart, spreadsheet or scheduled report.\n\nSynthetic contract test only — no SAP or RFC call. Keep unpublished."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -250],
+      "id": "120cf25c-4a07-4bd2-92e5-27ee85f125ab",
+      "name": "Test Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[{"node": "Summarize Account Status", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1", "binaryMode": "separate", "availableInMCP": false},
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

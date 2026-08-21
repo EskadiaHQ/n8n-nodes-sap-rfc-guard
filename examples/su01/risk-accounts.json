@@ -1,0 +1,48 @@
+{
+  "id": "SapRfcRiskAccounts1",
+  "name": "415 · RFC Guard · Locked and Expired Accounts",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "ed7407eb-a590-4731-9d47-3bec197dee4b",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "readOperation",
+        "businessOperationId": "listSu01RiskAccounts",
+        "parametersJson": "{\"client\":\"100\"}",
+        "limit": 50,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [260, 0],
+      "id": "326659ce-1f08-41aa-85ca-8367cbb3eee6",
+      "name": "List Access Risk Accounts"
+    },
+    {
+      "parameters": {
+        "content": "## Locked, expired and inactive accounts\n\nReturns accounts that need review and adds an English **riskReason**. Expected fixture result: **3 users**.\n\nThis is the strongest webinar example for a periodic access-review report.\n\nSynthetic contract test only — no SAP or RFC call. Keep unpublished."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -250],
+      "id": "58a6edb0-2778-4e62-8a2d-cee6e4b9a558",
+      "name": "Test Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[{"node": "List Access Risk Accounts", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1", "binaryMode": "separate", "availableInMCP": false},
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

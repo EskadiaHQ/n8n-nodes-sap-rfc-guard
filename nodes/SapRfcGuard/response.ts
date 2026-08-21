@@ -1,0 +1,89 @@
+import { OperationalError } from 'n8n-workflow';
+
+import type { RfcGuardMetadata } from './types';
+
+function asRecord(value: unknown, label: string): Record<string, unknown> {
+	if (!value || typeof value !== 'object' || Array.isArray(value)) {
+		throw new OperationalError(`${label} must be a JSON object.`);
+	}
+	return value as Record<string, unknown>;
+}
+
+function projectRecord(
+	row: Record<string, unknown>,
+	allowedFields: string[],
+): Record<string, unknown> {
+	const projected: Record<string, unknown> = {};
+	for (const field of allowedFields) {
+		if (Object.prototype.hasOwnProperty.call(row, field)) projected[field] = row[field];
+	}
+	return projected;
+}
+
+function readOnlyAttestation(response: Record<string, unknown>): true {
+	const meta = asRecord(response.meta, 'Sidecar response meta');
+	if (meta.readOnly !== true) {
+		throw new OperationalError('Sidecar response did not attest readOnly=true.');
+	}
+	return true;
+}
+
+export function sanitizeHealthResponse(value: unknown): Record<string, unknown> {
+	const response = asRecord(value, 'Sidecar health response');
+	const capabilities = asRecord(response.capabilities, 'Sidecar health capabilities');
+	if (capabilities.readOnly !== true) {
+		throw new OperationalError('The configured sidecar does not advertise read-only capability.');
+	}
+	return {
+		connected: response.status === 'ok' || response.status === 'healthy',
+		status: String(response.status ?? 'unknown'),
+		service: String(response.service ?? 'sap-rfc-sidecar'),
+		version: String(response.version ?? 'unknown'),
+		readOnly: true,
+	};
+}
+
+export function sanitizeExecutionResponse(
+	value: unknown,
+	operation: string,
+	correlationId: string,
+	allowedFields: string[],
+	requestedLimit: number,
+	credentialLimit: number,
+	includeMetadata: boolean,
+): Record<string, unknown>[] {
+	const response = asRecord(value, 'Sidecar execution response');
+	readOnlyAttestation(response);
+	if (response.operation !== operation) {
+		throw new OperationalError('Sidecar response operation does not match the requested operation.');
+	}
+	if (
+		response.correlationId !== undefined &&
+		String(response.correlationId) !== correlationId
+	) {
+		throw new OperationalError('Sidecar response correlation ID does not match the request.');
+	}
+
+	const rawData = response.data;
+	const records = Array.isArray(rawData)
+		? rawData.map((row, index) => asRecord(row, `Sidecar data row ${index}`))
+		: [asRecord(rawData, 'Sidecar data')];
+	const limit = Math.min(requestedLimit, credentialLimit);
+	const truncated = records.length > limit;
+	const rows = records.slice(0, limit).map((row) => projectRecord(row, allowedFields));
+	if (!includeMetadata) return rows;
+
+	const rawMeta = asRecord(response.meta, 'Sidecar response meta');
+	const metadata: RfcGuardMetadata = {
+		operation,
+		correlationId,
+		rowCount: rows.length,
+		rowLimit: limit,
+		truncated,
+		readOnly: true,
+	};
+	if (typeof rawMeta.source === 'string') metadata.source = rawMeta.source;
+	if (typeof rawMeta.durationMs === 'number') metadata.durationMs = rawMeta.durationMs;
+	if (rows.length === 0) return [{ _rfc: metadata }];
+	return rows.map((row, index) => (index === 0 ? { ...row, _rfc: metadata } : row));
+}

@@ -1,0 +1,69 @@
+{
+  "name": "415 · RFC Guard · REAL SAP · SU01 Read-Only Acceptance",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "bc096f6c-95c1-492e-a244-25d92759ebb2",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "readOperation",
+        "businessOperationId": "listSu01Users",
+        "parametersJson": "{\"client\":\"100\",\"maxRows\":10}"
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "3b8ce379-8fb7-4c00-a3ca-367c9349054a",
+      "name": "List SU01 Users — Real SAP"
+    },
+    {
+      "parameters": {
+        "content": "## Real SAP SU01 acceptance\n\nReplace the example client and select a dedicated **read-only RFC credential**. Confirm **_rfc.readOnly = true**, **_rfc.source = sap-jco**, **_rfc.syntheticData = false** and a maximum of ten rows. Compare an approved sample with SU01.\n\nKeep inactive and unpublished. Do not attach the synthetic credential."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        32,
+        -16
+      ],
+      "typeVersion": 1,
+      "id": "9cd84627-1986-4c72-8776-2e12c4af4078",
+      "name": "Test Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "List SU01 Users — Real SAP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": [],
+  "id": null
+}

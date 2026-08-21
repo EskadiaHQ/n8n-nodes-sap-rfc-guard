@@ -1,0 +1,75 @@
+{
+	"name": "n8n-nodes-sap-rfc-guard",
+	"version": "0.1.1",
+	"description": "Logali SAP RFC Guard: governed read-only RFC/BAPI operations for self-hosted n8n through an HTTPS sidecar",
+	"license": "MIT",
+	"keywords": [
+		"n8n-community-node-package",
+		"n8n",
+		"sap",
+		"rfc",
+		"bapi",
+		"sidecar"
+	],
+	"author": {
+		"name": "Logali Group",
+		"email": "admin@logaligroup.com",
+		"url": "https://logaligroup.com"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/EskadiaHQ/n8n-nodes-sap-rfc-guard.git"
+	},
+	"homepage": "https://github.com/EskadiaHQ/n8n-nodes-sap-rfc-guard#readme",
+	"bugs": {
+		"url": "https://github.com/EskadiaHQ/n8n-nodes-sap-rfc-guard/issues"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"publishConfig": {
+		"access": "public",
+		"provenance": true,
+		"tag": "next"
+	},
+	"scripts": {
+		"build": "n8n-node build",
+		"build:watch": "tsc --watch",
+		"dev": "n8n-node dev",
+		"lint": "n8n-node lint",
+		"lint:fix": "n8n-node lint --fix",
+		"test": "tsx --test test/**/*.test.ts",
+		"release": "n8n-node release",
+		"prepublishOnly": "n8n-node prerelease"
+	},
+	"files": [
+		"dist/credentials",
+		"dist/nodes/SapRfcGuard",
+		"examples",
+		"CHANGELOG.md",
+		"LICENSE.md",
+		"README.md",
+		"SECURITY.md"
+	],
+	"n8n": {
+		"n8nNodesApiVersion": 1,
+		"strict": false,
+		"credentials": [
+			"dist/credentials/SapRfcGuardApi.credentials.js"
+		],
+		"nodes": [
+			"dist/nodes/SapRfcGuard/SapRfcGuard.node.js"
+		]
+	},
+	"devDependencies": {
+		"@n8n/node-cli": "0.41.2",
+		"eslint": "9.32.0",
+		"prettier": "3.6.2",
+		"release-it": "^19.0.4",
+		"tsx": "4.20.6",
+		"typescript": "5.9.2"
+	},
+	"peerDependencies": {
+		"n8n-workflow": "*"
+	}
+}

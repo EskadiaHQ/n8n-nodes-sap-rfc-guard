@@ -1,0 +1,59 @@
+{
+  "name": "415 · RFC Guard · SU01 synthetic contract test",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "bc096f6c-95c1-492e-a244-25d92759ebb2",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "readOperation",
+        "businessOperationId": "listSu01Users",
+        "parametersJson": "{\"client\":\"100\"}"
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [224, 0],
+      "id": "3b8ce379-8fb7-4c00-a3ca-367c9349054a",
+      "name": "List SU01 Users — Synthetic Contract"
+    },
+    {
+      "parameters": {
+        "content": "## SU01 contract test — synthetic data\n\nThis workflow tests the node contract only. It does **not** call SAP or RFC.\n\n1. Select the dedicated synthetic contract credential.\n2. Click **Execute workflow**.\n3. Confirm that six fictitious users are returned.\n4. Check **_rfc.readOnly = true** and **_rfc.source = contract-fixture**.\n\nDeny-by-default check: temporarily change **Business Operation ID** to **createPurchaseOrder**. The node must reject it. Restore **listSu01Users** afterwards.\n\nKeep this workflow unpublished."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [32, -16],
+      "typeVersion": 1,
+      "id": "9cd84627-1986-4c72-8776-2e12c4af4078",
+      "name": "Test Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "List SU01 Users — Synthetic Contract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

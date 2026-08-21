@@ -1,0 +1,48 @@
+{
+  "id": "SapRfcUserDetail1",
+  "name": "415 · RFC Guard · User Detail Lookup",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "db0215ef-e27e-4582-bfef-3abbd51ac626",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "readOperation",
+        "businessOperationId": "getSu01UserDetail",
+        "parametersJson": "{\"client\":\"100\",\"username\":\"PROCUREMENT_USER\"}",
+        "limit": 1,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [260, 0],
+      "id": "a3fb16c9-fb76-4444-83b8-78d47b1e94fb",
+      "name": "Get Governed User Detail"
+    },
+    {
+      "parameters": {
+        "content": "## User detail lookup\n\nReads one governed user alias with an exact **username** parameter. Expected fixture result: **PROCUREMENT_USER**.\n\nThe response is projected by the credential field policy before it reaches the workflow.\n\nSynthetic contract test only — no SAP or RFC call. Keep unpublished."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -250],
+      "id": "3317342c-8c2e-46ce-8e43-22ea62cf0cfd",
+      "name": "Test Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[{"node": "Get Governed User Detail", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1", "binaryMode": "separate", "availableInMCP": false},
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

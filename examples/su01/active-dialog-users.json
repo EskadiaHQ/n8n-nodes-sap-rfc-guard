@@ -1,0 +1,48 @@
+{
+  "id": "SapRfcActiveDialog1",
+  "name": "415 · RFC Guard · Active Dialog Users",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "5d9b5a59-92ef-41b8-9d23-f3533098a153",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "readOperation",
+        "businessOperationId": "listSu01Users",
+        "parametersJson": "{\"client\":\"100\",\"accountStatus\":\"Active\",\"userType\":\"Dialog\"}",
+        "limit": 50,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [260, 0],
+      "id": "d893156d-14cc-46f8-b22d-3c60c00ef311",
+      "name": "List Active Dialog Users"
+    },
+    {
+      "parameters": {
+        "content": "## Active dialog users\n\nReturns active interactive accounts for example client 100. Expected fixture result: **1 user**.\n\nCheck **_rfc.readOnly = true** and **_rfc.source = contract-fixture**.\n\nSynthetic contract test only — no SAP or RFC call. Keep unpublished."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -250],
+      "id": "7fc574bf-f3b6-4f2b-b2fc-e70dfd23e8c8",
+      "name": "Test Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[{"node": "List Active Dialog Users", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1", "binaryMode": "separate", "availableInMCP": false},
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

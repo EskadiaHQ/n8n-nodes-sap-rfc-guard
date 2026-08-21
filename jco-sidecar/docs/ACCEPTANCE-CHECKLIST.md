@@ -1,0 +1,21 @@
+# Acceptance checklist
+
+- [ ] Standard BAPIs are verified in the target SAP system/client.
+- [x] Server reaches SAP dispatcher `3288` and gateway `3388`.
+- [x] Sidecar image builds on Linux x86-64 with glibc.
+- [x] Unit and HTTP contract tests pass.
+- [x] A stalled SAP operation returns `504 SAP_READ_TIMEOUT` at the configured limit.
+- [x] HTTPS server and internal CA provisioning are implemented.
+- [x] No host port is published.
+- [x] n8n and SAP credentials remain separated.
+- [x] The synthetic contract remains independent.
+- [ ] SAP JCo 3.1.13 Linux x86-64 archive is downloaded and installed.
+- [ ] Dedicated SAP technical user and least-privilege role are created.
+- [ ] `STAUTHTRACE` positive and negative evidence is captured.
+- [ ] Sidecar health identifies the approved target system/client.
+- [ ] Three-user governed smoke test returns `source=sap-jco`.
+- [ ] Internal CA is mounted into n8n with `NODE_EXTRA_CA_CERTS`.
+- [ ] A separate real n8n credential is created with TLS validation enabled.
+- [ ] Six cloned `REAL` workflows execute and remain inactive.
+- [ ] Sample results are compared with SU01.
+- [ ] Backup and rollback evidence is recorded.

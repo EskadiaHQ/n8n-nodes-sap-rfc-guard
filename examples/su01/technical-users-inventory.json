@@ -1,0 +1,48 @@
+{
+  "id": "SapRfcTechnical1",
+  "name": "415 · RFC Guard · Technical Users Inventory",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "54550d0d-e993-4d7f-ba46-c635f769c23d",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "readOperation",
+        "businessOperationId": "listSu01Users",
+        "parametersJson": "{\"client\":\"100\",\"userType\":\"System\"}",
+        "limit": 50,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [260, 0],
+      "id": "697058e0-9cdb-4b84-86e2-ac413b7bc6dd",
+      "name": "List Technical Users"
+    },
+    {
+      "parameters": {
+        "content": "## Technical users inventory\n\nFilters the governed user list by **userType = System**. Expected fixture result: **1 user**.\n\nUse it to explain the difference between dialog and technical identities.\n\nSynthetic contract test only — no SAP or RFC call. Keep unpublished."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -250],
+      "id": "ff84c76f-1030-4070-abed-a216424baa66",
+      "name": "Test Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[{"node": "List Technical Users", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1", "binaryMode": "separate", "availableInMCP": false},
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

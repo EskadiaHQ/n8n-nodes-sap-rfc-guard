@@ -1,0 +1,7 @@
+dist/
+node_modules/
+*.tgz
+*.tsbuildinfo
+.DS_Store
+jco-sidecar/docs/READINESS-REPORT-*.md
+jco-sidecar/n8n-ca.compose.override.yml
