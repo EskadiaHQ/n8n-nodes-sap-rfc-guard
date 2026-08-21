@@ -49,7 +49,7 @@ returns `SAP_READ_TIMEOUT` instead of holding the n8n request indefinitely.
 ## Build and test
 
 ```bash
-docker build -t logali-sap-rfc-guard-jco:0.4.0 .
+docker build -t logali-sap-rfc-guard-jco:0.4.2 .
 ```
 
 The image build runs the unit tests. It does not need the proprietary JCo files;

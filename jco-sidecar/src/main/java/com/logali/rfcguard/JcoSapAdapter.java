@@ -935,10 +935,21 @@ final class JcoSapAdapter implements SapAdapter {
     return "PendingInvoice";
   }
   private static String dateValue(Object record, String field) {
-    String raw = optionalString(record, field);
-    String value = digits(raw, 8);
-    if (value.isBlank() || "00000000".equals(value)) return "";
-    return value.substring(0, 4) + "-" + value.substring(4, 6) + "-" + value.substring(6, 8);
+    return normalizeDate(optionalString(record, field));
+  }
+  static String normalizeDate(String raw) {
+    String value = string(raw);
+    if (value.isBlank() || value.matches("0{4}[-./]?0{2}[-./]?0{2}")) return "";
+    for (DateTimeFormatter formatter : List.of(
+        DateTimeFormatter.ISO_LOCAL_DATE,
+        DateTimeFormatter.BASIC_ISO_DATE,
+        DateTimeFormatter.ofPattern("dd.MM.uuuu"),
+        DateTimeFormatter.ofPattern("MM/dd/uuuu"),
+        DateTimeFormatter.ofPattern("dd/MM/uuuu"))) {
+      try { return LocalDate.parse(value, formatter).toString(); }
+      catch (RuntimeException ignored) { /* Try the next SAP/JCo display format. */ }
+    }
+    return "";
   }
   private static String boundedText(Object input, int minimum, int maximum, String errorCode) {
     String value = string(input);

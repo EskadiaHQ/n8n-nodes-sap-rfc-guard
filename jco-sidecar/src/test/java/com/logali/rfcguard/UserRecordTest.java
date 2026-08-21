@@ -39,6 +39,14 @@ final class UserRecordTest {
     assertEquals("", JcoSapAdapter.timestamp("00000000", "084203"));
   }
 
+  @Test void normalizesSapAndJcoDateFormats() {
+    assertEquals("2026-08-07", JcoSapAdapter.normalizeDate("20260807"));
+    assertEquals("2026-08-07", JcoSapAdapter.normalizeDate("2026-08-07"));
+    assertEquals("2026-08-07", JcoSapAdapter.normalizeDate("07.08.2026"));
+    assertEquals("2026-08-07", JcoSapAdapter.normalizeDate("08/07/2026"));
+    assertEquals("", JcoSapAdapter.normalizeDate("0000-00-00"));
+  }
+
   @Test void doesNotClassifyTechnicalUserByDialogDormancyRule() {
     var raw = base();
     raw.put("userType", "B");

@@ -43,7 +43,7 @@ X-RFC-Guard-Mode: read-only
 {
   "status": "ok",
   "service": "sap-rfc-guard-jco",
-  "version": "0.4.0",
+  "version": "0.4.2",
   "backend": { "systemId": "S4D", "client": "100" },
   "capabilities": { "readOnly": true, "operations": ["listSu01Users"] }
 }

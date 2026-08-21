@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 - 2026-08-21
+
+- Normalize the locale-formatted SAP dates returned by purchase-order schedule tables.
+- Fix real `BAPI_PO_GETDETAIL1` reads that failed when JCo exposed a date as `dd.MM.yyyy`.
+- Add regression coverage for compact SAP dates, ISO dates and common JCo display formats.
+
 ## 0.4.1 - 2026-08-21
 
 - Correct the AI Agent workflow to use n8n's generated `sapRfcGuardTool` node type.
