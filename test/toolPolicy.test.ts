@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
 import { assertAiToolAllowed } from '../nodes/SapRfcGuard/toolPolicy';
@@ -34,6 +35,25 @@ describe('AI tool policy', () => {
 				...credentials,
 				allowAiTool: true,
 			}),
+		);
+	});
+
+	it('exports the AI Agent example with the generated tool node type', () => {
+		const workflow = JSON.parse(
+			readFileSync(
+				new URL('../examples/business/real/sap-document-ai-agent.json', import.meta.url),
+				'utf8',
+			),
+		) as { nodes: Array<{ type: string }> };
+		const guardedNodes = workflow.nodes.filter((node) =>
+			node.type.startsWith('n8n-nodes-sap-rfc-guard.'),
+		);
+
+		assert.equal(guardedNodes.length, 2);
+		assert.ok(
+			guardedNodes.every(
+				(node) => node.type === 'n8n-nodes-sap-rfc-guard.sapRfcGuardTool',
+			),
 		);
 	});
 });

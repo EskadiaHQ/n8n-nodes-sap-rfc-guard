@@ -20,6 +20,7 @@ can be reviewed before a production SAP identity is connected.
 - Vendor/customer open items, due-date calculation and overdue ageing summaries.
 - Purchase-order schedules, confirmations and receipt/invoice totals.
 - Minimized vendor and customer master summaries.
+- Governed AI Agent workflow verified end to end with a real sales-order read.
 
 ## Before `1.0.0`
 
@@ -27,11 +28,11 @@ can be reviewed before a production SAP identity is connected.
 - Replace the temporary test account with a least-privilege service account.
 - Preserve complete SU01 and STAUTHTRACE evidence for positive and negative cases.
 - Verify direct and load-balanced destination modes.
-- Complete positive purchase-order and sales-order reads with approved document IDs.
+- Complete a positive purchase-order read with an approved document ID.
 
 ## Candidate `0.5.x` work
 
-- Real AI Agent, email and approval workflows using only fixed aliases.
+- Email and approval workflows using only fixed aliases.
 - Optional metrics endpoint without user data or SAP credentials.
 - Operation-specific concurrency and rate limits.
 - Optional governed snapshot adapter for historical SU01 reporting.

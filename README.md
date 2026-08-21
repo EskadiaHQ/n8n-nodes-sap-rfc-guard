@@ -204,6 +204,9 @@ internal URLs. Expected results and business aliases are listed in `examples/su0
 `examples/business/real/` adds first-class company, material, ATP, purchasing,
 sales, invoice and open-item examples. Document workflows contain placeholders
 and fail input validation until an approved ID from the target client is supplied.
+The AI Agent example uses n8n's generated `sapRfcGuardTool` variant, requires an
+AI-enabled read-only credential and remains limited by the same operation and
+field allowlists as the normal workflow node.
 
 ## Real SAP JCo sidecar
 

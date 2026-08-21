@@ -54,7 +54,7 @@
         "limit": 50,
         "includeMetadata": true
       },
-      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuardTool",
       "typeVersion": 1,
       "position": [520, 430],
       "id": "e47a7409-c291-4daf-a73a-f7552f2a644c",
@@ -69,7 +69,7 @@
         "limit": 50,
         "includeMetadata": true
       },
-      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuardTool",
       "typeVersion": 1,
       "position": [760, 430],
       "id": "caf06b2d-1a2e-4b97-88bc-8c412ea34ff8",

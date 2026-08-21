@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1 - 2026-08-21
+
+- Correct the AI Agent workflow to use n8n's generated `sapRfcGuardTool` node type.
+- Add a regression test for the importable agent workflow.
+- Verify a governed AI Agent end to end against a real sales order in A4H/250 without enabling writes.
+
 ## 0.4.0 - 2026-08-21
 
 - Add typed ATP availability checks through `BAPI_MATERIAL_AVAILABILITY`.
