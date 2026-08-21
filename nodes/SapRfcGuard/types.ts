@@ -33,5 +33,11 @@ export interface RfcGuardMetadata {
 	truncated: boolean;
 	readOnly: true;
 	source?: string;
+	syntheticData?: boolean;
+	backend?: {
+		systemId: string;
+		client: string;
+		release: string;
+	};
 	durationMs?: number;
 }

@@ -1,0 +1,66 @@
+{
+  "id": "SapRfcLogonReview1",
+  "name": "415 · RFC Guard · REAL SAP · Last Logon Review",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "52472bf4-37d2-4fc1-a6af-e98175ebfb96",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "readOperation",
+        "businessOperationId": "listSu01Users",
+        "parametersJson": "{\"client\":\"100\",\"maxRows\":100,\"inactiveDays\":90}",
+        "limit": 100,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [260, 0],
+      "id": "d92674d2-1f46-4b0a-b9dc-047f300fbb6b",
+      "name": "Read Governed User Activity"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const rows = $input.all().map((item) => item.json);\nconst accounts = rows.filter((row) => row.username);\nconst byStatus = {};\nfor (const account of accounts) {\n  const status = String(account.accountStatus ?? 'Unknown');\n  byStatus[status] = (byStatus[status] ?? 0) + 1;\n}\nconst evidence = rows.find((row) => row._rfc)?._rfc ?? {};\nreturn [{ json: {\n  generatedAt: new Date().toISOString(),\n  reviewedAccounts: accounts.length,\n  accountsWithLastLogon: accounts.filter((row) => row.lastLogonAt).length,\n  accountsWithoutLastLogon: accounts.filter((row) => !row.lastLogonAt).length,\n  byStatus,\n  evidence: {\n    readOnly: evidence.readOnly === true,\n    source: evidence.source ?? 'unknown',\n    syntheticData: evidence.syntheticData ?? null,\n    backend: evidence.backend ?? null,\n    correlationId: evidence.correlationId ?? null\n  }\n} }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 0],
+      "id": "c5c9efb5-7035-47ae-bf5e-5ecfb20b55f2",
+      "name": "Build Access Review"
+    },
+    {
+      "parameters": {
+        "content": "## Last-logon review\n\nRun only after the real JCo acceptance gate. The report keeps SAP read evidence and counts accounts with or without a last logon. The returned time is SAP local time unless the landscape proves a UTC interpretation.\n\nKeep inactive and unpublished."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -260],
+      "id": "fb2461fe-ac13-4134-bf67-e21d9ac542da",
+      "name": "Review Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[{"node": "Read Governed User Activity", "type": "main", "index": 0}]]
+    },
+    "Read Governed User Activity": {
+      "main": [[{"node": "Build Access Review", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

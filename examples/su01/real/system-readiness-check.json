@@ -1,0 +1,63 @@
+{
+  "id": "SapRfcReadiness1",
+  "name": "415 · RFC Guard · REAL SAP · System Readiness Check",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "26d7f237-9a96-49d9-bc72-6c46f7be95be",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "connection",
+        "operation": "testConnection"
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [260, 0],
+      "id": "5b431824-b9f0-486e-b215-03fccb73e22f",
+      "name": "Check Read-Only Sidecar"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const required = ['listSu01Users', 'getSu01UserDetail'];\nconst operations = Array.isArray($json.operations) ? $json.operations : [];\nconst missingOperations = required.filter((operation) => !operations.includes(operation));\nreturn {\n  readyForControlledBapiTest: $json.connected === true && $json.readOnly === true && missingOperations.length === 0,\n  connected: $json.connected === true,\n  readOnly: $json.readOnly === true,\n  service: $json.service ?? 'unknown',\n  version: $json.version ?? 'unknown',\n  backend: $json.backend ?? null,\n  missingOperations,\n  remainingManualChecks: ['SE37 signature', 'S_RFC scope', 'S_USER_GRP scope', 'STAUTHTRACE positive and negative']\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [520, 0],
+      "id": "361229f2-74ab-4e6a-aa5b-d29aa8f62dc1",
+      "name": "Evaluate Readiness"
+    },
+    {
+      "parameters": {
+        "content": "## R/3, ECC and S/4HANA readiness\n\nThis checks transport, authentication, backend identity and advertised business aliases. It does not replace SE37 verification or STAUTHTRACE. Older R/3 releases without BAPI_USER_GETLIST require the governed custom-RFC or snapshot route.\n\nKeep inactive and unpublished."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -260],
+      "id": "70ce8775-f48c-4441-8fc0-9dc505136722",
+      "name": "Compatibility Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[{"node": "Check Read-Only Sidecar", "type": "main", "index": 0}]]
+    },
+    "Check Read-Only Sidecar": {
+      "main": [[{"node": "Evaluate Readiness", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

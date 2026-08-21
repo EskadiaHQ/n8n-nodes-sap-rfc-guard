@@ -38,8 +38,11 @@ final class JcoSapAdapter implements SapAdapter {
   }
 
   @Override public List<UserRecord> listUsers(Map<String, Object> parameters) {
-    int requested = integer(parameters.get("maxRows"), configuration.maxRows());
-    int limit = Math.min(Math.max(1, requested), configuration.maxRows());
+    assertConfiguredClient(parameters);
+    int limit = boundedInteger(parameters.get("maxRows"), configuration.maxRows(),
+        1, configuration.maxRows(), "MAX_ROWS_INVALID");
+    int inactiveDays = boundedInteger(parameters.get("inactiveDays"), configuration.inactiveDays(),
+        1, 3650, "INACTIVE_DAYS_INVALID");
     Object function = function(USER_LIST_BAPI);
     Object imports = JcoReflection.invoke(function, "getImportParameterList");
     JcoReflection.invoke(imports, "setValue", "MAX_ROWS", Integer.toString(limit));
@@ -54,7 +57,7 @@ final class JcoSapAdapter implements SapAdapter {
     for (int index = 0; index < count && output.size() < limit; index++) {
       JcoReflection.invoke(userList, "setRow", index);
       String username = JcoReflection.string(userList, "USERNAME");
-      if (!username.isBlank()) output.add(readDetail(username));
+      if (!username.isBlank()) output.add(readDetail(username, inactiveDays));
     }
     return applyFilters(output, parameters);
   }
@@ -63,10 +66,10 @@ final class JcoSapAdapter implements SapAdapter {
     if (username == null || !username.matches("[A-Za-z0-9_.@\\-]{1,40}")) {
       throw new IllegalArgumentException("USERNAME_INVALID");
     }
-    return List.of(readDetail(username.toUpperCase()));
+    return List.of(readDetail(username.toUpperCase(), configuration.inactiveDays()));
   }
 
-  private UserRecord readDetail(String username) {
+  private UserRecord readDetail(String username, int inactiveDays) {
     Object function = function(USER_DETAIL_BAPI);
     Object imports = JcoReflection.invoke(function, "getImportParameterList");
     JcoReflection.invoke(imports, "setValue", "USERNAME", username);
@@ -88,12 +91,13 @@ final class JcoSapAdapter implements SapAdapter {
         (JcoReflection.string(address, "FIRSTNAME") + " " + JcoReflection.string(address, "LASTNAME")).trim()));
     raw.put("email", JcoReflection.string(address, "E_MAIL"));
     raw.put("createdAt", JcoReflection.string(admin, "ERDAT"));
-    raw.put("lastLogonAt", JcoReflection.string(admin, "TRDAT"));
+    raw.put("lastLogonAt", timestamp(
+        JcoReflection.string(admin, "TRDAT"), optionalString(logon, "LTIME")));
     raw.put("localLock", JcoReflection.string(locked, "LOCAL_LOCK"));
     raw.put("globalLock", JcoReflection.string(locked, "GLOB_LOCK"));
     raw.put("wrongLogonLock", JcoReflection.string(locked, "WRNG_LOGON"));
     raw.put("noPassword", JcoReflection.string(locked, "NO_USER_PW"));
-    return UserRecord.classify(raw, configuration.inactiveDays(), LocalDate.now(clock));
+    return UserRecord.classify(raw, inactiveDays, LocalDate.now(clock));
   }
 
   private List<UserRecord> applyFilters(List<UserRecord> input, Map<String, Object> parameters) {
@@ -132,11 +136,45 @@ final class JcoSapAdapter implements SapAdapter {
     catch (RuntimeException ignored) { return ""; }
   }
 
-  private static int integer(Object input, int fallback) {
-    try { return input == null ? fallback : Integer.parseInt(input.toString()); }
-    catch (NumberFormatException ignored) { return fallback; }
+  private void assertConfiguredClient(Map<String, Object> parameters) {
+    Object requested = parameters.get("client");
+    if (requested == null) return;
+    String configured = configuration.jcoProperties().getOrDefault("jco.client.client", "");
+    if (!requested.toString().equals(configured)) throw new IllegalArgumentException("CLIENT_MISMATCH");
+  }
+
+  private static int boundedInteger(
+      Object input, int fallback, int minimum, int maximum, String errorCode) {
+    if (input == null) return fallback;
+    try {
+      int value = Integer.parseInt(input.toString());
+      if (value < minimum || value > maximum) throw new NumberFormatException();
+      return value;
+    } catch (NumberFormatException error) {
+      throw new IllegalArgumentException(errorCode);
+    }
   }
 
   private static String string(Object input) { return input == null ? "" : input.toString().trim(); }
   private static String firstNonBlank(String first, String second) { return first == null || first.isBlank() ? second : first; }
+
+  private static String optionalString(Object structure, String field) {
+    try { return JcoReflection.string(structure, field); }
+    catch (RuntimeException ignored) { return ""; }
+  }
+
+  static String timestamp(String rawDate, String rawTime) {
+    String date = digits(rawDate, 8);
+    if (date.isBlank() || "00000000".equals(date)) return "";
+    String formattedDate = date.substring(0, 4) + "-" + date.substring(4, 6) + "-" + date.substring(6, 8);
+    String time = digits(rawTime, 6);
+    if (time.isBlank() || "000000".equals(time)) return formattedDate;
+    return formattedDate + "T" + time.substring(0, 2) + ":" + time.substring(2, 4) + ":" + time.substring(4, 6);
+  }
+
+  private static String digits(String input, int maximum) {
+    if (input == null) return "";
+    String digits = input.replaceAll("[^0-9]", "");
+    return digits.length() >= maximum ? digits.substring(0, maximum) : "";
+  }
 }

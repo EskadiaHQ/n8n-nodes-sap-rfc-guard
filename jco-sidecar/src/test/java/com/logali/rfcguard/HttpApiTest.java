@@ -50,6 +50,13 @@ final class HttpApiTest {
     assertTrue(response.body().contains("READ_ONLY_CONTRACT_REQUIRED"));
   }
 
+  @Test void rejectsUnknownParametersAtTheHttpBoundary() throws Exception {
+    var response = send("POST", "/v1/operations/listSu01Users/execute",
+        "{\"operation\":\"listSu01Users\",\"parameters\":{\"table\":\"USR02\"},\"context\":{\"readOnly\":true}}", TOKEN);
+    assertEquals(400, response.statusCode());
+    assertTrue(response.body().contains("PARAMETER_NOT_ALLOWED"));
+  }
+
   @Test void returnsGovernedRealSourceMetadata() throws Exception {
     var response = send("POST", "/v1/operations/listSu01Users/execute",
         "{\"operation\":\"listSu01Users\",\"parameters\":{},\"context\":{\"readOnly\":true}}", TOKEN);

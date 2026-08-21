@@ -34,6 +34,8 @@ validation enabled.
 | User Detail Lookup | Governed detail for one approved test username |
 | Account Status Summary | Local aggregation by status |
 | Read-only Acceptance | Positive source/read-only checks and reviewer evidence |
+| Last Logon Review | Counts known/unknown last-logon values and preserves real-source evidence |
+| System Readiness Check | Verifies transport, backend identity and required business aliases before BAPI acceptance |
 
 Do not import or publish this collection until all acceptance gates are met:
 

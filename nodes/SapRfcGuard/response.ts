@@ -28,18 +28,43 @@ function readOnlyAttestation(response: Record<string, unknown>): true {
 	return true;
 }
 
+function safeBackend(value: unknown): RfcGuardMetadata['backend'] | undefined {
+	if (value === undefined) return undefined;
+	const backend = asRecord(value, 'Sidecar response backend');
+	const systemId = String(backend.systemId ?? '');
+	const client = String(backend.client ?? '');
+	const release = String(backend.release ?? '');
+	if (!/^[A-Za-z0-9_-]{1,16}$/.test(systemId)) {
+		throw new OperationalError('Sidecar backend system ID is invalid.');
+	}
+	if (!/^[0-9]{3}$/.test(client)) {
+		throw new OperationalError('Sidecar backend client is invalid.');
+	}
+	if (!/^[A-Za-z0-9._-]{1,32}$/.test(release)) {
+		throw new OperationalError('Sidecar backend release is invalid.');
+	}
+	return { systemId, client, release };
+}
+
 export function sanitizeHealthResponse(value: unknown): Record<string, unknown> {
 	const response = asRecord(value, 'Sidecar health response');
 	const capabilities = asRecord(response.capabilities, 'Sidecar health capabilities');
 	if (capabilities.readOnly !== true) {
 		throw new OperationalError('The configured sidecar does not advertise read-only capability.');
 	}
+	const rawOperations = capabilities.operations;
+	const operations = Array.isArray(rawOperations)
+		? rawOperations.map(String).filter((operation) => /^[a-z][a-zA-Z0-9.-]{0,63}$/.test(operation))
+		: [];
+	const backend = safeBackend(response.backend);
 	return {
 		connected: response.status === 'ok' || response.status === 'healthy',
 		status: String(response.status ?? 'unknown'),
 		service: String(response.service ?? 'sap-rfc-sidecar'),
 		version: String(response.version ?? 'unknown'),
 		readOnly: true,
+		operations,
+		...(backend ? { backend } : {}),
 	};
 }
 
@@ -83,6 +108,9 @@ export function sanitizeExecutionResponse(
 		readOnly: true,
 	};
 	if (typeof rawMeta.source === 'string') metadata.source = rawMeta.source;
+	if (typeof rawMeta.syntheticData === 'boolean') metadata.syntheticData = rawMeta.syntheticData;
+	const backend = safeBackend(rawMeta.backend);
+	if (backend) metadata.backend = backend;
 	if (typeof rawMeta.durationMs === 'number') metadata.durationMs = rawMeta.durationMs;
 	if (rows.length === 0) return [{ _rfc: metadata }];
 	return rows.map((row, index) => (index === 0 ? { ...row, _rfc: metadata } : row));

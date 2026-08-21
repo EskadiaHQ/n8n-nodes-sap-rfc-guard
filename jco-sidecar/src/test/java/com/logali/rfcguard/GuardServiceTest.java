@@ -25,6 +25,31 @@ final class GuardServiceTest {
     assertEquals("account_locked", rows.getFirst().get("riskReason"));
   }
 
+  @Test void rejectsUnexpectedParametersBeforeCallingSap() {
+    var service = new GuardService(new StubAdapter());
+    var error = assertThrows(IllegalArgumentException.class,
+        () -> service.execute("listSu01Users", Map.of("rfcFunction", "RFC_READ_TABLE")));
+    assertEquals("PARAMETER_NOT_ALLOWED", error.getMessage());
+  }
+
+  @Test void rejectsInvalidFiltersAndBounds() {
+    var service = new GuardService(new StubAdapter());
+    assertEquals("MAX_ROWS_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("listSu01Users", Map.of("maxRows", 0))).getMessage());
+    assertEquals("INACTIVE_DAYS_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("listSu01Users", Map.of("inactiveDays", "many"))).getMessage());
+    assertEquals("USER_TYPE_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("listSu01Users", Map.of("userType", "Administrator"))).getMessage());
+    assertEquals("DIMENSION_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("summarizeSu01Accounts", Map.of("dimension", "email"))).getMessage());
+  }
+
+  @Test void requiresAValidUsernameForDetail() {
+    var service = new GuardService(new StubAdapter());
+    assertEquals("USERNAME_REQUIRED", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("getSu01UserDetail", Map.of())).getMessage());
+  }
+
   private static final class StubAdapter implements SapAdapter {
     @Override public void ping() {}
     @Override public Backend backend() { return new Backend("S4D", "100", "sap", "2025"); }

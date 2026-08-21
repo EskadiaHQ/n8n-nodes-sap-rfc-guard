@@ -25,6 +25,20 @@ final class UserRecordTest {
     assertEquals("2026-01-01", user.lastLogonAt());
   }
 
+  @Test void classifiesIsoTimestampUsingItsDate() {
+    var raw = base();
+    raw.put("lastLogonAt", "2026-01-01T23:59:58");
+    var user = UserRecord.classify(raw, 90, LocalDate.of(2026, 8, 21));
+    assertEquals("Inactive", user.accountStatus());
+    assertEquals("2026-01-01T23:59:58", user.lastLogonAt());
+  }
+
+  @Test void formatsSapDateAndOptionalTimeWithoutAssumingUtc() {
+    assertEquals("2026-08-20T08:42:03", JcoSapAdapter.timestamp("20260820", "084203"));
+    assertEquals("2026-08-20", JcoSapAdapter.timestamp("20260820", ""));
+    assertEquals("", JcoSapAdapter.timestamp("00000000", "084203"));
+  }
+
   @Test void doesNotClassifyTechnicalUserByDialogDormancyRule() {
     var raw = base();
     raw.put("userType", "B");

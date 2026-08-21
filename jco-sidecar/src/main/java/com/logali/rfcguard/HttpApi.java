@@ -85,7 +85,7 @@ final class HttpApi implements AutoCloseable {
       adapter.ping();
       var backend = adapter.backend();
       response(exchange, 200, Map.of(
-          "status", "ok", "service", "sap-rfc-guard-jco", "version", "0.1.0",
+          "status", "ok", "service", "sap-rfc-guard-jco", "version", "0.1.2",
           "backend", backendMap(backend),
           "capabilities", Map.of("readOnly", true, "operations", GuardService.OPERATIONS),
           "timestamp", Instant.now().toString(), "correlationId", correlationId));
@@ -197,6 +197,14 @@ final class HttpApi implements AutoCloseable {
       case "REQUEST_TOO_LARGE" -> "The request exceeds 64 KiB.";
       case "USERNAME_REQUIRED" -> "The username parameter is required.";
       case "USERNAME_INVALID" -> "The username parameter is invalid.";
+      case "PARAMETER_NOT_ALLOWED" -> "The request contains a parameter not approved for this operation.";
+      case "MAX_ROWS_INVALID" -> "maxRows must be an integer within the operated limit.";
+      case "INACTIVE_DAYS_INVALID" -> "inactiveDays must be an integer between 1 and 3650.";
+      case "CLIENT_INVALID" -> "client must contain exactly three digits.";
+      case "CLIENT_MISMATCH" -> "The requested client does not match the operated SAP destination.";
+      case "USER_TYPE_INVALID" -> "userType is not one of the governed SU01 user types.";
+      case "ACCOUNT_STATUS_INVALID" -> "accountStatus is not one of the governed account states.";
+      case "DIMENSION_INVALID" -> "dimension must be accountStatus or userType.";
       case "SAP_READ_TIMEOUT" -> "SAP did not complete the governed read within the configured limit.";
       case "REQUEST_INTERRUPTED" -> "The governed read was interrupted before completion.";
       case "SAP_READ_FAILED" -> "SAP could not complete the governed read.";

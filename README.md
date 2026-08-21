@@ -39,7 +39,7 @@ X-RFC-Guard-Mode: read-only
 {
   "status": "ok",
   "service": "sap-rfc-guard-jco",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "backend": { "systemId": "S4D", "client": "100" },
   "capabilities": { "readOnly": true, "operations": ["listSu01Users"] }
 }
@@ -141,6 +141,20 @@ The node is intentionally separate from Logali HANA Guard. They share governance
 use different transports: HANA Guard speaks HANA SQL; SAP RFC Guard speaks HTTPS to an RFC
 sidecar.
 
+## Compatibility and optional snapshot
+
+The transport does not require HANA. It can target compatible SAP R/3, ECC and
+S/4HANA systems, but the two standard BAPIs and their exact structures must be
+checked in each target release. SAP documents `BAPI_USER_GETLIST` from release
+6.20; older R/3 systems may require a narrowly scoped custom read RFC. See
+[`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md).
+
+Current SU01 data should normally be read from the standard BAPIs. When a
+historical point-in-time report or a large scheduled extract is required, use
+the separated governed Z snapshot pattern in
+[`docs/Z-SNAPSHOT-PATTERN.md`](docs/Z-SNAPSHOT-PATTERN.md), never an unrestricted
+table-reader RFC.
+
 ## Synthetic contract test
 
 `contract-sidecar/` contains an isolated test double for validating the node before a real SAP
@@ -153,10 +167,10 @@ The importable workflow is
 credential. After import, select a dedicated fixture credential and keep the workflow unpublished.
 Never reuse the fixture token or the insecure HTTP option for a real SAP connection.
 
-`examples/su01/` adds five focused examples for a webinar or acceptance test: active dialog
-users, technical users, locked/expired/inactive accounts, one governed user detail, and an
-account-status summary. Their JSON files contain no credential IDs or internal URLs. Expected
-results and business aliases are listed in `examples/su01/README.md`.
+`examples/su01/` adds focused examples for a webinar or acceptance test: active dialog users,
+technical users, locked/expired/inactive accounts, one governed user detail, account-status
+summary, last-logon review and system readiness. Their JSON files contain no credential IDs or
+internal URLs. Expected results and business aliases are listed in `examples/su01/README.md`.
 
 ## Real SAP JCo sidecar
 
@@ -175,3 +189,7 @@ npm test
 npm run lint
 npm run build
 ```
+
+See [`ROADMAP.md`](ROADMAP.md) for the early-access acceptance gates and planned
+work. If the SAP JCo download is blocked, the minimal authorization request is
+available in [`docs/SAP-DOWNLOAD-REQUEST.md`](docs/SAP-DOWNLOAD-REQUEST.md).

@@ -38,7 +38,7 @@ record UserRecord(
     String userType = mapUserType(value(raw, "userType"));
     String validFrom = date(value(raw, "validFrom"));
     String validTo = date(value(raw, "validTo"));
-    String lastLogon = date(value(raw, "lastLogonAt"));
+    String lastLogon = dateTime(value(raw, "lastLogonAt"));
     String lockStatus = lockStatus(raw);
 
     String status = "Active";
@@ -94,8 +94,20 @@ record UserRecord(
     return input;
   }
 
+  private static String dateTime(String input) {
+    if (input == null || input.isBlank()) return "";
+    String digits = input.replaceAll("[^0-9]", "");
+    if (digits.length() < 8 || "00000000".equals(digits.substring(0, 8))) return "";
+    String formatted = digits.substring(0, 4) + "-" + digits.substring(4, 6) + "-" + digits.substring(6, 8);
+    if (digits.length() < 14 || "000000".equals(digits.substring(8, 14))) return formatted;
+    return formatted + "T" + digits.substring(8, 10) + ":" + digits.substring(10, 12) + ":" + digits.substring(12, 14);
+  }
+
   private static LocalDate parseDate(String value) {
-    try { return value == null || value.isBlank() ? null : LocalDate.parse(value); }
+    try {
+      if (value == null || value.isBlank()) return null;
+      return LocalDate.parse(value.length() >= 10 ? value.substring(0, 10) : value);
+    }
     catch (RuntimeException ignored) { return null; }
   }
 

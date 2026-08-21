@@ -11,6 +11,15 @@ const operations = Object.freeze([
   'summarizeSu01Accounts',
 ]);
 const operationSet = new Set(operations);
+const expectedClient = process.env.SAP_CLIENT ?? '100';
+const allowedParameters = Object.freeze({
+  listSu01Users: new Set(['client', 'maxRows', 'inactiveDays', 'userType', 'accountStatus']),
+  getSu01UserDetail: new Set(['client', 'username']),
+  listSu01RiskAccounts: new Set(['client', 'maxRows', 'inactiveDays']),
+  summarizeSu01Accounts: new Set(['client', 'maxRows', 'inactiveDays', 'dimension']),
+});
+const userTypes = new Set(['dialog', 'system', 'communication', 'reference', 'service']);
+const accountStatuses = new Set(['active', 'locked', 'expired', 'notyetvalid', 'inactive']);
 
 const users = Object.freeze([
   {
@@ -21,7 +30,7 @@ const users = Object.freeze([
     createdAt: '2025-01-15',
     validFrom: '2025-01-15',
     validTo: '9999-12-31',
-    lastLogonAt: '2026-08-20T08:42:00Z',
+    lastLogonAt: '2026-08-20T08:42:00',
     lockStatus: 'Unlocked',
     accountStatus: 'Active',
   },
@@ -33,7 +42,7 @@ const users = Object.freeze([
     createdAt: '2025-04-03',
     validFrom: '2025-04-03',
     validTo: '9999-12-31',
-    lastLogonAt: '2026-08-18T14:10:00Z',
+    lastLogonAt: '2026-08-18T14:10:00',
     lockStatus: 'LockedByAdministrator',
     accountStatus: 'Locked',
   },
@@ -45,7 +54,7 @@ const users = Object.freeze([
     createdAt: '2024-11-11',
     validFrom: '2024-11-11',
     validTo: '9999-12-31',
-    lastLogonAt: '2026-08-21T00:05:00Z',
+    lastLogonAt: '2026-08-21T00:05:00',
     lockStatus: 'Unlocked',
     accountStatus: 'Active',
   },
@@ -57,7 +66,7 @@ const users = Object.freeze([
     createdAt: '2023-06-09',
     validFrom: '2023-06-09',
     validTo: '2025-12-31',
-    lastLogonAt: '2025-12-14T17:25:00Z',
+    lastLogonAt: '2025-12-14T17:25:00',
     lockStatus: 'Unlocked',
     accountStatus: 'Expired',
   },
@@ -69,7 +78,7 @@ const users = Object.freeze([
     createdAt: '2024-02-20',
     validFrom: '2024-02-20',
     validTo: '9999-12-31',
-    lastLogonAt: '2025-08-10T09:30:00Z',
+    lastLogonAt: '2025-08-10T09:30:00',
     lockStatus: 'Unlocked',
     accountStatus: 'Inactive',
   },
@@ -81,7 +90,7 @@ const users = Object.freeze([
     createdAt: '2025-09-12',
     validFrom: '2025-09-12',
     validTo: '9999-12-31',
-    lastLogonAt: '2026-08-20T22:18:00Z',
+    lastLogonAt: '2026-08-20T22:18:00',
     lockStatus: 'Unlocked',
     accountStatus: 'Active',
   },
@@ -99,6 +108,41 @@ function json(res, statusCode, body) {
 
 function isAuthorized(req) {
   return req.headers.authorization === `Bearer ${expectedToken}`;
+}
+
+function integerParameter(parameters, key, fallback, minimum, maximum, errorCode) {
+  if (parameters[key] === undefined) return fallback;
+  const value = Number(parameters[key]);
+  if (!Number.isInteger(value) || value < minimum || value > maximum) throw new Error(errorCode);
+  return value;
+}
+
+function validateParameters(operation, parameters) {
+  const allowed = allowedParameters[operation];
+  if (!parameters || typeof parameters !== 'object' || Array.isArray(parameters)) {
+    throw new Error('PARAMETERS_INVALID');
+  }
+  if (Object.keys(parameters).some((key) => !allowed.has(key))) {
+    throw new Error('PARAMETER_NOT_ALLOWED');
+  }
+  if (parameters.client !== undefined) {
+    const client = String(parameters.client);
+    if (!/^\d{3}$/.test(client)) throw new Error('CLIENT_INVALID');
+    if (client !== expectedClient) throw new Error('CLIENT_MISMATCH');
+  }
+  integerParameter(parameters, 'maxRows', users.length, 1, 500, 'MAX_ROWS_INVALID');
+  integerParameter(parameters, 'inactiveDays', 90, 1, 3650, 'INACTIVE_DAYS_INVALID');
+  if (parameters.userType !== undefined && !userTypes.has(String(parameters.userType).toLowerCase())) {
+    throw new Error('USER_TYPE_INVALID');
+  }
+  if (parameters.accountStatus !== undefined
+    && !accountStatuses.has(String(parameters.accountStatus).toLowerCase())) {
+    throw new Error('ACCOUNT_STATUS_INVALID');
+  }
+  if (parameters.dimension !== undefined
+    && !['accountStatus', 'userType'].includes(parameters.dimension)) {
+    throw new Error('DIMENSION_INVALID');
+  }
 }
 
 async function readJson(req) {
@@ -125,11 +169,12 @@ function filterUsers(parameters = {}) {
     ? parameters.userType.trim().toLowerCase()
     : '';
 
+  const maxRows = integerParameter(parameters, 'maxRows', users.length, 1, 500, 'MAX_ROWS_INVALID');
   return users.filter((user) => {
     const statusMatches = !status || user.accountStatus.toLowerCase() === status;
     const typeMatches = !userType || user.userType.toLowerCase() === userType;
     return statusMatches && typeMatches;
-  });
+  }).slice(0, maxRows);
 }
 
 function getUserDetail(parameters = {}) {
@@ -140,14 +185,16 @@ function getUserDetail(parameters = {}) {
   return users.filter((user) => user.username === username);
 }
 
-function listRiskAccounts() {
+function listRiskAccounts(parameters = {}) {
   const reasons = {
     Locked: 'account_locked',
     Expired: 'validity_expired',
     Inactive: 'no_recent_logon',
   };
+  const maxRows = integerParameter(parameters, 'maxRows', users.length, 1, 500, 'MAX_ROWS_INVALID');
   return users
     .filter((user) => Object.hasOwn(reasons, user.accountStatus))
+    .slice(0, maxRows)
     .map((user) => ({
       ...user,
       riskReason: reasons[user.accountStatus],
@@ -157,7 +204,8 @@ function listRiskAccounts() {
 function summarizeAccounts(parameters = {}) {
   const dimension = parameters.dimension === 'userType' ? 'userType' : 'accountStatus';
   const counts = new Map();
-  for (const user of users) {
+  const maxRows = integerParameter(parameters, 'maxRows', users.length, 1, 500, 'MAX_ROWS_INVALID');
+  for (const user of users.slice(0, maxRows)) {
     const value = user[dimension];
     counts.set(value, (counts.get(value) ?? 0) + 1);
   }
@@ -173,7 +221,7 @@ function executeOperation(operation, parameters) {
     case 'getSu01UserDetail':
       return getUserDetail(parameters);
     case 'listSu01RiskAccounts':
-      return listRiskAccounts();
+      return listRiskAccounts(parameters);
     case 'summarizeSu01Accounts':
       return summarizeAccounts(parameters);
     default:
@@ -197,7 +245,7 @@ const server = http.createServer(async (req, res) => {
     json(res, 200, {
       status: 'ok',
       service: 'sap-rfc-guard-contract-fixture',
-      version: '1.1.0',
+      version: '1.2.0',
       capabilities: {
         readOnly: true,
         operations,
@@ -231,7 +279,9 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const data = executeOperation(routeOperation, body.parameters ?? {});
+    const parameters = body.parameters ?? {};
+    validateParameters(routeOperation, parameters);
+    const data = executeOperation(routeOperation, parameters);
     json(res, 200, {
       operation: routeOperation,
       correlationId,
@@ -246,15 +296,18 @@ const server = http.createServer(async (req, res) => {
       },
     });
   } catch (error) {
-    const tooLarge = error instanceof Error && error.message === 'REQUEST_TOO_LARGE';
-    const usernameRequired = error instanceof Error && error.message === 'USERNAME_REQUIRED';
-    json(res, tooLarge ? 413 : 400, {
-      error: tooLarge ? 'REQUEST_TOO_LARGE' : usernameRequired ? 'USERNAME_REQUIRED' : 'INVALID_JSON',
-      message: tooLarge
+    const code = error instanceof Error && /^[A-Z][A-Z0-9_]{2,64}$/.test(error.message)
+      ? error.message
+      : 'INVALID_JSON';
+    json(res, code === 'REQUEST_TOO_LARGE' ? 413 : 400, {
+      error: code,
+      message: code === 'REQUEST_TOO_LARGE'
         ? 'The request exceeds 64 KiB.'
-        : usernameRequired
+        : code === 'USERNAME_REQUIRED'
           ? 'The username parameter is required.'
-          : 'The request body must be valid JSON.',
+          : code === 'INVALID_JSON'
+            ? 'The request body must be valid JSON.'
+            : 'The request parameters do not satisfy the governed operation contract.',
       correlationId,
     });
   }
