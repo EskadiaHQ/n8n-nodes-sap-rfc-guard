@@ -11,6 +11,7 @@
 - Add R/3 compatibility, governed Z snapshot, SAP download request and public roadmap documentation.
 - Add executable contract-fixture tests and expand the JCo sidecar suite to 17 tests.
 - Add importable last-logon review and cross-release system-readiness workflows.
+- Update Jackson to its patched 2.18 line and refresh the n8n development/release tooling.
 
 ## 0.1.1 - 2026-08-21
 
