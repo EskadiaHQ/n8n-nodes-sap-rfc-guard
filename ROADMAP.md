@@ -3,7 +3,7 @@
 SAP RFC Guard is published early so its security contract and deployment model
 can be reviewed before a production SAP identity is connected.
 
-## Available in `0.1.x`
+## Available in `0.2.x`
 
 - Governed HTTPS contract between n8n and an operated sidecar.
 - Deny-by-default business aliases and response-field policies.
@@ -11,8 +11,10 @@ can be reviewed before a production SAP identity is connected.
 - Synthetic contract workflows plus separate real-SAP acceptance workflows.
 - Java 21 JCo sidecar with TLS, bounded workers, timeouts and fail-closed health.
 - Direct application-server and message-server destination templates.
+- Optional, isolated Communication-user provisioning through `BAPI_USER_CREATE1`.
+- Target-bound confirmation, username prefix, short validity, fixed user group and zero role/profile assignment.
 
-## Before `0.2.0`
+## Before `1.0.0`
 
 - Complete one controlled execution against SAP with SAP JCo for Linux x86-64.
 - Validate the two standard user BAPIs and their structures in the target release.
@@ -20,7 +22,7 @@ can be reviewed before a production SAP identity is connected.
 - Verify direct and load-balanced destination modes.
 - Publish the community package to npm under the `next` tag.
 
-## Candidate `0.2.x` work
+## Candidate `0.3.x` work
 
 - Optional metrics endpoint without user data or SAP credentials.
 - Operation-specific concurrency and rate limits.
@@ -36,6 +38,6 @@ can be reviewed before a production SAP identity is connected.
 - Stable operation and error contracts.
 - No dependency on an unrestricted RFC or table-reader function.
 
-Write operations are deliberately outside the current roadmap. A future write
-capability would require a separate node/credential surface, explicit approval,
-idempotency and an independent SAP authorization model.
+Further write operations remain outside the roadmap until each receives its own
+isolated credential/sidecar mode, explicit approval, idempotency contract and
+independent SAP authorization model.

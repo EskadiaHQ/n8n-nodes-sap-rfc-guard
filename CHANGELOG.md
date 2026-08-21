@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0 - 2026-08-21
+
+- Add a separately configured `User Administration / Create Communication User` operation.
+- Map the governed alias to `BAPI_USER_CREATE1` plus explicit commit and read-back verification.
+- Require a dedicated provisioning credential, endpoint mode, token, exact target-bound confirmation and non-AI execution.
+- Restrict created accounts to an operated username prefix, Communication type, fixed SAP user group and short validity.
+- Keep the initial password only in the sidecar secret and never return it to n8n.
+- Return explicit evidence that no roles or profiles were assigned by the operation.
+- Keep the existing read-only sidecar and credentials isolated and backward compatible.
+
 ## 0.1.2 - 2026-08-21
 
 - Reject unknown and invalid operation parameters before an RFC call.

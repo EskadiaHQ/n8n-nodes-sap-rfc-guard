@@ -1,16 +1,16 @@
-name: logali-sap-rfc-guard
+name: logali-sap-rfc-provision
 
 services:
-  sap-rfc-guard:
+  sap-rfc-provision:
     image: logali-sap-rfc-guard-jco:0.2.0
-    container_name: sap-rfc-guard-jco
+    container_name: sap-rfc-provision-jco
     restart: unless-stopped
     working_dir: /tmp
     env_file:
-      - /srv/sap-rfc-guard/secrets/sap-rfc-guard.env
+      - /srv/sap-rfc-guard/secrets/sap-rfc-provision.env
     volumes:
       - /srv/sap-rfc-guard/vendor/sap-jco:/opt/sap/jco:ro
-      - /srv/sap-rfc-guard/tls/server.p12:/run/secrets/sap-rfc-guard-server.p12:ro
+      - /srv/sap-rfc-guard/tls/sap-rfc-provision-jco/server.p12:/run/secrets/sap-rfc-guard-server.p12:ro
     networks:
       - n8n_backend
       - sap_egress
@@ -21,9 +21,9 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
-    pids_limit: 128
-    mem_limit: 512m
-    cpus: 1.0
+    pids_limit: 64
+    mem_limit: 384m
+    cpus: 0.5
     expose:
       - "8080"
 
@@ -32,8 +32,5 @@ networks:
     external: true
     name: n8n_backend
   sap_egress:
+    external: true
     name: logali_sap_rfc_egress
-    driver: bridge
-    ipam:
-      config:
-        - subnet: ${SAP_RFC_EGRESS_SUBNET:-10.203.43.0/28}

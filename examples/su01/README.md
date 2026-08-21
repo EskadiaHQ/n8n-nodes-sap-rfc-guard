@@ -21,7 +21,7 @@ The workflow JSON files intentionally contain no credential IDs or internal URLs
 
 ## Real SAP acceptance collection
 
-The six JSON files in `real/` are inactive acceptance workflows for the JCo
+The JSON files in `real/` are inactive acceptance workflows for the JCo
 sidecar. They use the same governed business aliases, but require a separate
 credential pointing to `https://sap-rfc-guard-jco:8080` with certificate
 validation enabled.
@@ -36,6 +36,7 @@ validation enabled.
 | Read-only Acceptance | Positive source/read-only checks and reviewer evidence |
 | Last Logon Review | Counts known/unknown last-logon values and preserves real-source evidence |
 | System Readiness Check | Verifies transport, backend identity and required business aliases before BAPI acceptance |
+| Create Communication User | Separate governed write using `BAPI_USER_CREATE1`; one prefix-restricted user, no roles or profiles |
 
 Do not import or publish this collection until all acceptance gates are met:
 
@@ -51,3 +52,8 @@ Do not import or publish this collection until all acceptance gates are met:
 
 The real JSON files intentionally contain no credential IDs, secrets, internal
 tokens or bound workflow IDs.
+
+The creation example requires a second `user-provisioning` sidecar and
+credential. It is not a read workflow: keep it inactive, unavailable through
+MCP and detached from AI tools. The username and exact confirmation must be
+changed together before any later execution.

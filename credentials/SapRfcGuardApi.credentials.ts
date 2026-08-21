@@ -12,6 +12,18 @@ export class SapRfcGuardApi implements ICredentialType {
 
 	properties: INodeProperties[] = [
 		{
+			displayName: 'Sidecar Mode',
+			name: 'sidecarMode',
+			type: 'options',
+			options: [
+				{ name: 'Read Only', value: 'readOnly' },
+				{ name: 'User Provisioning', value: 'userProvisioning' },
+			],
+			default: 'readOnly',
+			description:
+				'Use a separate sidecar and credential for provisioning; never reuse a read-only endpoint for writes',
+		},
+		{
 			displayName: 'Sidecar Base URL',
 			name: 'baseUrl',
 			type: 'string',
@@ -52,6 +64,15 @@ export class SapRfcGuardApi implements ICredentialType {
 			required: true,
 		},
 		{
+			displayName: 'Allow Communication-User Creation',
+			name: 'allowUserCreation',
+			type: 'boolean',
+			default: false,
+			description:
+				'Whether this credential can create a Communication user through the dedicated provisioning sidecar',
+			displayOptions: { show: { sidecarMode: ['userProvisioning'] } },
+		},
+		{
 			displayName: 'Validate TLS Certificate',
 			name: 'rejectUnauthorized',
 			type: 'boolean',
@@ -72,7 +93,7 @@ export class SapRfcGuardApi implements ICredentialType {
 			type: 'boolean',
 			default: false,
 			description:
-				'Whether this credential may be attached to the SAP RFC Guard Tool variant. The same allowlists and limits still apply.',
+				'Whether this credential may be attached to the SAP RFC Guard Tool variant. Provisioning credentials are always rejected as AI tools.',
 		},
 		{
 			displayName: 'Maximum Rows',

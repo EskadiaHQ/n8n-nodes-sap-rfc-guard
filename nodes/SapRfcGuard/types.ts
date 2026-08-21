@@ -1,8 +1,10 @@
 export interface SapRfcGuardCredentials {
 	baseUrl: string;
 	apiToken: string;
+	sidecarMode?: 'readOnly' | 'userProvisioning';
 	allowedOperations: string;
 	dataFieldPoliciesJson: string;
+	allowUserCreation?: boolean;
 	allowInsecureHttp?: boolean;
 	rejectUnauthorized?: boolean;
 	connectionTimeout: number;
@@ -31,7 +33,8 @@ export interface RfcGuardMetadata {
 	rowCount: number;
 	rowLimit: number;
 	truncated: boolean;
-	readOnly: true;
+	readOnly: boolean;
+	writeOperation?: boolean;
 	source?: string;
 	syntheticData?: boolean;
 	backend?: {

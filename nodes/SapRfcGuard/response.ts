@@ -68,6 +68,32 @@ export function sanitizeHealthResponse(value: unknown): Record<string, unknown> 
 	};
 }
 
+export function sanitizeProvisioningHealthResponse(value: unknown): Record<string, unknown> {
+	const response = asRecord(value, 'Sidecar health response');
+	const capabilities = asRecord(response.capabilities, 'Sidecar health capabilities');
+	if (capabilities.readOnly !== false || capabilities.writeEnabled !== true) {
+		throw new OperationalError('The configured sidecar does not advertise user-provisioning capability.');
+	}
+	const rawOperations = capabilities.operations;
+	const operations = Array.isArray(rawOperations)
+		? rawOperations.map(String).filter((operation) => /^[a-z][a-zA-Z0-9.-]{0,63}$/.test(operation))
+		: [];
+	if (!operations.includes('createSu01CommunicationUser')) {
+		throw new OperationalError('The sidecar does not advertise the governed user-creation alias.');
+	}
+	const backend = safeBackend(response.backend);
+	return {
+		connected: response.status === 'ok' || response.status === 'healthy',
+		status: String(response.status ?? 'unknown'),
+		service: String(response.service ?? 'sap-rfc-sidecar'),
+		version: String(response.version ?? 'unknown'),
+		readOnly: false,
+		writeEnabled: true,
+		operations,
+		...(backend ? { backend } : {}),
+	};
+}
+
 export function sanitizeExecutionResponse(
 	value: unknown,
 	operation: string,
@@ -114,4 +140,38 @@ export function sanitizeExecutionResponse(
 	if (typeof rawMeta.durationMs === 'number') metadata.durationMs = rawMeta.durationMs;
 	if (rows.length === 0) return [{ _rfc: metadata }];
 	return rows.map((row, index) => (index === 0 ? { ...row, _rfc: metadata } : row));
+}
+
+export function sanitizeWriteResponse(
+	value: unknown,
+	operation: string,
+	correlationId: string,
+	allowedFields: string[],
+): Record<string, unknown> {
+	const response = asRecord(value, 'Sidecar execution response');
+	const meta = asRecord(response.meta, 'Sidecar response meta');
+	if (meta.readOnly !== false || meta.write !== true) {
+		throw new OperationalError('Sidecar response did not attest write=true and readOnly=false.');
+	}
+	if (response.operation !== operation) {
+		throw new OperationalError('Sidecar response operation does not match the requested operation.');
+	}
+	if (response.correlationId !== undefined && String(response.correlationId) !== correlationId) {
+		throw new OperationalError('Sidecar response correlation ID does not match the request.');
+	}
+	const rawData = Array.isArray(response.data) ? response.data[0] : response.data;
+	const projected = projectRecord(asRecord(rawData, 'Sidecar data'), allowedFields);
+	const backend = safeBackend(meta.backend);
+	return {
+		...projected,
+		_rfc: {
+			operation,
+			correlationId,
+			readOnly: false,
+			writeOperation: true,
+			...(typeof meta.source === 'string' ? { source: meta.source } : {}),
+			...(typeof meta.syntheticData === 'boolean' ? { syntheticData: meta.syntheticData } : {}),
+			...(backend ? { backend } : {}),
+		},
+	};
 }

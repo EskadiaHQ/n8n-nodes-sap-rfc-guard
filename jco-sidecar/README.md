@@ -1,8 +1,9 @@
 # SAP RFC Guard JCo sidecar
 
-Production-oriented, read-only SAP RFC sidecar for the Logali SAP RFC Guard n8n
-node. The public API accepts only four business aliases; technical RFC names are
-not accepted from callers.
+Production-oriented SAP RFC sidecar for the Logali SAP RFC Guard n8n node. The
+default mode remains read-only. An optional, separately deployed
+`user-provisioning` mode accepts only the governed Communication-user creation
+alias; technical RFC names are never accepted from callers.
 
 ## Required proprietary runtime
 
@@ -22,6 +23,8 @@ repository and from the container image.
 - `getSu01UserDetail` uses `BAPI_USER_GET_DETAIL`.
 - `listSu01RiskAccounts` classifies the governed result in the sidecar.
 - `summarizeSu01Accounts` aggregates the governed result in the sidecar.
+- `createSu01CommunicationUser` uses `BAPI_USER_CREATE1`, commits explicitly and
+  reads the account back for verification.
 
 The runtime never exposes password hashes, SNC identities, profiles, roles or
 arbitrary BAPI fields. The configured technical user still needs the relevant
@@ -33,7 +36,7 @@ returns `SAP_READ_TIMEOUT` instead of holding the n8n request indefinitely.
 ## Build and test
 
 ```bash
-docker build -t logali-sap-rfc-guard-jco:0.1.2 .
+docker build -t logali-sap-rfc-guard-jco:0.2.0 .
 ```
 
 The image build runs the unit tests. It does not need the proprietary JCo files;
@@ -49,6 +52,13 @@ synthetic data.
 3. Build the image and start the stack.
 4. Verify authenticated `/v1/health` from the n8n container.
 5. Create a separate n8n credential; do not overwrite the fixture credential.
+
+For user creation, deploy a second container, certificate, API token and n8n
+credential. Set `RFC_GUARD_MODE=user-provisioning`,
+`RFC_GUARD_ENABLE_USER_CREATE=true`, `RFC_GUARD_USER_PREFIX`,
+`RFC_GUARD_USER_GROUP`, `RFC_GUARD_USER_VALIDITY_DAYS` and the root-protected
+`RFC_GUARD_NEW_USER_PASSWORD`. Never add these settings to the read-only
+container and never expose either service on a host port.
 
 Keep the existing synthetic contract container available for regression tests.
 The JCo sidecar must have no published host ports.

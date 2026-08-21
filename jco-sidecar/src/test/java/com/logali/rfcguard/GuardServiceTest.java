@@ -50,6 +50,18 @@ final class GuardServiceTest {
         () -> service.execute("getSu01UserDetail", Map.of())).getMessage());
   }
 
+  @Test void validatesAndRoutesOnlyTheGovernedCommunicationUserCreation() {
+    var service = new GuardService(new StubAdapter());
+    var result = service.execute("createSu01CommunicationUser", Map.of(
+        "username", "N8N_DEMO_01", "firstName", "n8n", "lastName", "Demo User",
+        "validDays", 1));
+    assertEquals(true, result.getFirst().get("created"));
+    assertEquals("EMAIL_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("createSu01CommunicationUser", Map.of(
+            "username", "N8N_DEMO_01", "firstName", "n8n", "lastName", "Demo User",
+            "email", "not-an-email"))).getMessage());
+  }
+
   private static final class StubAdapter implements SapAdapter {
     @Override public void ping() {}
     @Override public Backend backend() { return new Backend("S4D", "100", "sap", "2025"); }
@@ -57,6 +69,9 @@ final class GuardServiceTest {
       return List.of(user("ACTIVE", "Active", ""), user("LOCKED", "Locked", "account_locked"));
     }
     @Override public List<UserRecord> getUser(String username) { return List.of(user(username, "Active", "")); }
+    @Override public Map<String, Object> createCommunicationUser(Map<String, Object> parameters) {
+      return Map.of("username", parameters.get("username"), "created", true);
+    }
     private UserRecord user(String username, String status, String reason) {
       return new UserRecord(username, "Dialog", "", "", "", "", "", "", "Unlocked", status, reason);
     }

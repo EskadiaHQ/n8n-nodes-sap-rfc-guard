@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { executeApprovedOperation, testSidecarConnection } from '../nodes/SapRfcGuard/client';
+import {
+	executeApprovedOperation,
+	executeApprovedWriteOperation,
+	testSidecarConnection,
+} from '../nodes/SapRfcGuard/client';
 import type { RfcGuardRequestOptions, SapRfcGuardCredentials } from '../nodes/SapRfcGuard/types';
 
 const credentials: SapRfcGuardCredentials = {
@@ -70,5 +74,28 @@ describe('sidecar HTTP contract', () => {
 			(error: Error) =>
 				error.message.includes('[REDACTED]') && !error.message.includes(credentials.apiToken),
 		);
+	});
+
+	it('uses a separate provisioning contract and never sends the new user password', async () => {
+		let captured: RfcGuardRequestOptions | undefined;
+		await executeApprovedWriteOperation(
+			{ ...credentials, sidecarMode: 'userProvisioning', allowUserCreation: true },
+			async (options) => {
+				captured = options;
+				return { data: { created: true } };
+			},
+			'createSu01CommunicationUser',
+			{ username: 'N8N_DEMO_01', firstName: 'n8n', lastName: 'Demo User', validDays: 1 },
+			'trace-write-1',
+			'CREATE N8N_DEMO_01',
+		);
+		assert.equal(captured?.headers['X-RFC-Guard-Mode'], 'user-provisioning');
+		assert.deepEqual(captured?.body?.context, {
+			client: 'n8n-sap-rfc-guard',
+			readOnly: false,
+			write: true,
+			confirmation: 'CREATE N8N_DEMO_01',
+		});
+		assert.equal(JSON.stringify(captured).toLowerCase().includes('password'), false);
 	});
 });

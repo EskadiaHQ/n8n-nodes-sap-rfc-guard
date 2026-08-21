@@ -16,18 +16,30 @@ import {
 	type INodeTypeDescription,
 } from 'n8n-workflow';
 
-import { executeApprovedOperation, testSidecarConnection } from './client';
+import {
+	executeApprovedOperation,
+	executeApprovedWriteOperation,
+	testSidecarConnection,
+} from './client';
 import {
 	allowedDataFieldsForOperation,
+	assertCreateConfirmation,
 	assertOperationAllowed,
 	assertOperationId,
+	assertProvisioningCredential,
 	enforceSerializedByteLimit,
 	parseAllowedOperations,
 	parseDataFieldPolicies,
 	parseParametersJson,
 	validateGovernanceConfiguration,
+	USER_CREATE_OPERATION,
 } from './governance';
-import { sanitizeExecutionResponse, sanitizeHealthResponse } from './response';
+import {
+	sanitizeExecutionResponse,
+	sanitizeHealthResponse,
+	sanitizeProvisioningHealthResponse,
+	sanitizeWriteResponse,
+} from './response';
 import { assertAiToolAllowed } from './toolPolicy';
 import type { RfcGuardHttpRequest, SapRfcGuardCredentials } from './types';
 
@@ -60,7 +72,7 @@ export class SapRfcGuard implements INodeType {
 		version: 1,
 		subtitle: '={{$parameter["resource"] + ": " + $parameter["operation"]}}',
 		description:
-			'Run governed, read-only SAP RFC/BAPI business operations through an operated HTTPS sidecar',
+			'Run governed SAP RFC/BAPI reads or explicitly confirmed user provisioning through isolated HTTPS sidecars',
 		usableAsTool: {
 			replacements: {
 				description:
@@ -82,8 +94,79 @@ export class SapRfcGuard implements INodeType {
 				options: [
 					{ name: 'Connection', value: 'connection' },
 					{ name: 'Read Operation', value: 'readOperation' },
+					{ name: 'User Administration', value: 'userAdministration' },
 				],
 				default: 'connection',
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['userAdministration'] } },
+				options: [
+					{
+						name: 'Create Communication User',
+						value: 'createCommunicationUser',
+						action: 'Create a governed SAP communication user',
+						description:
+							'Creates one prefix-restricted Communication user without roles or profiles',
+					},
+				],
+				default: 'createCommunicationUser',
+			},
+			{
+				displayName: 'SAP Username',
+				name: 'username',
+				type: 'string',
+				default: '',
+				placeholder: 'N8N_DEMO_01',
+				description: '1-12 uppercase letters, numbers, or underscores; the sidecar also enforces its configured prefix',
+				required: true,
+				displayOptions: { show: { resource: ['userAdministration'] } },
+			},
+			{
+				displayName: 'First Name',
+				name: 'firstName',
+				type: 'string',
+				default: 'n8n',
+				required: true,
+				displayOptions: { show: { resource: ['userAdministration'] } },
+			},
+			{
+				displayName: 'Last Name',
+				name: 'lastName',
+				type: 'string',
+				default: 'Demo User',
+				required: true,
+				displayOptions: { show: { resource: ['userAdministration'] } },
+			},
+			{
+				displayName: 'Email',
+				name: 'email',
+				type: 'string',
+				default: '',
+				placeholder: 'demo@example.invalid',
+				displayOptions: { show: { resource: ['userAdministration'] } },
+			},
+			{
+				displayName: 'Validity (Days)',
+				name: 'validDays',
+				type: 'number',
+				typeOptions: { minValue: 1, maxValue: 7 },
+				default: 1,
+				description: 'Maximum validity is also constrained by the provisioning sidecar',
+				displayOptions: { show: { resource: ['userAdministration'] } },
+			},
+			{
+				displayName: 'Confirmation',
+				name: 'writeConfirmation',
+				type: 'string',
+				default: '',
+				placeholder: 'CREATE N8N_DEMO_01',
+				description: 'Enter CREATE followed by the exact target username',
+				required: true,
+				displayOptions: { show: { resource: ['userAdministration'] } },
 			},
 			{
 				displayName: 'Operation',
@@ -146,7 +229,7 @@ export class SapRfcGuard implements INodeType {
 				default: '',
 				placeholder: 'Generated automatically when empty',
 				description: 'Trace identifier shared by n8n, the sidecar, and SAP logs',
-				displayOptions: { show: { resource: ['readOperation'] } },
+				displayOptions: { show: { resource: ['readOperation', 'userAdministration'] } },
 			},
 			{
 				displayName: 'Row Limit',
@@ -194,6 +277,10 @@ export class SapRfcGuard implements INodeType {
 						credentialHttpRequest,
 						randomUUID(),
 					);
+					if ((credentials.sidecarMode ?? 'readOnly') === 'userProvisioning') {
+						sanitizeProvisioningHealthResponse(result);
+						return { status: 'OK', message: 'Governed SAP user-provisioning sidecar connection successful' };
+					}
 					sanitizeHealthResponse(result);
 					return { status: 'OK', message: 'Read-only RFC sidecar connection successful' };
 				} catch (error) {
@@ -233,7 +320,48 @@ export class SapRfcGuard implements INodeType {
 						'Sidecar response',
 					);
 					outputItems.push({
-						json: sanitizeHealthResponse(result) as IDataObject,
+						json: ((credentials.sidecarMode ?? 'readOnly') === 'userProvisioning'
+							? sanitizeProvisioningHealthResponse(result)
+							: sanitizeHealthResponse(result)) as IDataObject,
+						pairedItem: { item: itemIndex },
+					});
+					continue;
+				}
+
+				if (resource === 'userAdministration') {
+					assertProvisioningCredential(credentials);
+					const username = assertCreateConfirmation(
+						this.getNodeParameter('username', itemIndex) as string,
+						this.getNodeParameter('writeConfirmation', itemIndex) as string,
+					);
+					const operation = USER_CREATE_OPERATION;
+					const allowedOperations = parseAllowedOperations(credentials.allowedOperations);
+					assertOperationAllowed(operation, allowedOperations);
+					const fieldPolicies = parseDataFieldPolicies(credentials.dataFieldPoliciesJson);
+					const allowedFields = allowedDataFieldsForOperation(operation, fieldPolicies);
+					const parameters = {
+						username,
+						firstName: String(this.getNodeParameter('firstName', itemIndex)).trim(),
+						lastName: String(this.getNodeParameter('lastName', itemIndex)).trim(),
+						email: String(this.getNodeParameter('email', itemIndex, '')).trim(),
+						validDays: this.getNodeParameter('validDays', itemIndex, 1) as number,
+					};
+					enforceSerializedByteLimit(parameters, Number(credentials.maxRequestBytes), 'Operation parameters');
+					const traceId = correlationId(
+						this.getNodeParameter('correlationId', itemIndex, '') as string,
+					);
+					const confirmation = `CREATE ${username}`;
+					const response = await executeApprovedWriteOperation(
+						credentials,
+						httpRequest,
+						operation,
+						parameters,
+						traceId,
+						confirmation,
+					);
+					enforceSerializedByteLimit(response, Number(credentials.maxResponseBytes), 'Sidecar response');
+					outputItems.push({
+						json: sanitizeWriteResponse(response, operation, traceId, allowedFields) as IDataObject,
 						pairedItem: { item: itemIndex },
 					});
 					continue;

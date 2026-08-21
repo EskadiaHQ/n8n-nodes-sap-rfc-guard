@@ -1,0 +1,56 @@
+{
+  "id": "SapRfcCreateUser1",
+  "name": "415 · RFC Guard · REAL SAP · Create Communication User",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "f667ab2b-b550-4b4f-9e6c-f84d28194101",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "userAdministration",
+        "operation": "createCommunicationUser",
+        "username": "N8N_TST_0821",
+        "firstName": "n8n",
+        "lastName": "Provisioning Test",
+        "email": "",
+        "validDays": 1,
+        "writeConfirmation": "CREATE N8N_TST_0821",
+        "correlationId": "n8n-user-create-20260821"
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [300, 0],
+      "id": "47b08725-972c-4f75-81f0-a412778cd626",
+      "name": "Create SAP Communication User"
+    },
+    {
+      "parameters": {
+        "content": "## Destructive test: creates one real SAP user\n\nThis workflow calls the governed `createSu01CommunicationUser` alias. The provisioning sidecar fixes type `Communication`, group `ZN8N_MOODLE`, a one-day validity and a server-held initial password. It assigns no roles or profiles and never returns the password.\n\nKeep inactive, unpublished and unavailable as an AI tool. Change both the username and exact confirmation before any later run."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -250],
+      "id": "c0925c53-b3de-4970-bf30-9bbcd74fc937",
+      "name": "Controlled Write Warning"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[{"node": "Create SAP Communication User", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

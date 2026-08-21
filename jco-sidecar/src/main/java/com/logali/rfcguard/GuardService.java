@@ -8,13 +8,16 @@ import java.util.Map;
 import java.util.Set;
 
 final class GuardService {
-  static final Set<String> OPERATIONS = Set.of(
+  static final Set<String> READ_OPERATIONS = Set.of(
       "listSu01Users", "getSu01UserDetail", "listSu01RiskAccounts", "summarizeSu01Accounts");
+  static final Set<String> WRITE_OPERATIONS = Set.of("createSu01CommunicationUser");
   private static final Map<String, Set<String>> PARAMETERS = Map.of(
       "listSu01Users", Set.of("client", "maxRows", "inactiveDays", "userType", "accountStatus"),
       "getSu01UserDetail", Set.of("client", "username"),
       "listSu01RiskAccounts", Set.of("client", "maxRows", "inactiveDays"),
-      "summarizeSu01Accounts", Set.of("client", "maxRows", "inactiveDays", "dimension"));
+      "summarizeSu01Accounts", Set.of("client", "maxRows", "inactiveDays", "dimension"),
+      "createSu01CommunicationUser", Set.of(
+          "client", "username", "firstName", "lastName", "email", "validDays"));
   private static final Set<String> USER_TYPES = Set.of(
       "Dialog", "System", "Communication", "Reference", "Service");
   private static final Set<String> ACCOUNT_STATUSES = Set.of(
@@ -31,6 +34,7 @@ final class GuardService {
       case "listSu01RiskAccounts" -> maps(adapter.listUsers(parameters).stream()
           .filter(user -> !"Active".equals(user.accountStatus())).toList(), true);
       case "summarizeSu01Accounts" -> summarize(adapter.listUsers(parameters), parameters);
+      case "createSu01CommunicationUser" -> List.of(adapter.createCommunicationUser(parameters));
       default -> throw new IllegalArgumentException("OPERATION_NOT_ALLOWED");
     };
   }
@@ -62,6 +66,25 @@ final class GuardService {
       throw new IllegalArgumentException("DIMENSION_INVALID");
     }
     if ("getSu01UserDetail".equals(operation)) requiredUsername(parameters);
+    if ("createSu01CommunicationUser".equals(operation)) {
+      requiredUsername(parameters);
+      requiredText(parameters, "firstName", 1, 40, "FIRST_NAME_INVALID");
+      requiredText(parameters, "lastName", 1, 40, "LAST_NAME_INVALID");
+      optionalInteger(parameters, "validDays", 1, 30, "VALID_DAYS_INVALID");
+      Object email = parameters.get("email");
+      if (email != null && !email.toString().isBlank()
+          && !email.toString().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+        throw new IllegalArgumentException("EMAIL_INVALID");
+      }
+    }
+  }
+
+  private static void requiredText(
+      Map<String, Object> parameters, String key, int minimum, int maximum, String errorCode) {
+    Object raw = parameters.get(key);
+    if (raw == null) throw new IllegalArgumentException(errorCode);
+    int length = raw.toString().trim().length();
+    if (length < minimum || length > maximum) throw new IllegalArgumentException(errorCode);
   }
 
   private static void optionalInteger(

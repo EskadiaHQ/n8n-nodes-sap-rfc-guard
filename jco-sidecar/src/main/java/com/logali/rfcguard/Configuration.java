@@ -11,8 +11,22 @@ record Configuration(
     int requestTimeoutSeconds,
     String tlsKeystorePath,
     String tlsKeystorePassword,
+    String mode,
+    boolean userCreationEnabled,
+    String userCreatePrefix,
+    String userCreateGroup,
+    int userCreateMaxValidityDays,
+    String newUserInitialPassword,
     Map<String, String> jcoProperties
 ) {
+  Configuration(int port, String apiToken, String destinationName, int maxRows, int inactiveDays,
+      int requestTimeoutSeconds, String tlsKeystorePath, String tlsKeystorePassword,
+      Map<String, String> jcoProperties) {
+    this(port, apiToken, destinationName, maxRows, inactiveDays, requestTimeoutSeconds,
+        tlsKeystorePath, tlsKeystorePassword, "read-only", false, "N8N_DEMO_", "",
+        7, "", jcoProperties);
+  }
+
   static Configuration fromEnvironment() {
     var env = System.getenv();
     var properties = new java.util.LinkedHashMap<String, String>();
@@ -48,13 +62,39 @@ record Configuration(
       throw new IllegalArgumentException("Configure SAP_ASHOST + SAP_SYSNR or SAP_MSHOST + SAP_R3NAME + SAP_GROUP");
     }
 
+    String mode = env.getOrDefault("RFC_GUARD_MODE", "read-only").trim();
+    if (!mode.equals("read-only") && !mode.equals("user-provisioning")) {
+      throw new IllegalArgumentException("RFC_GUARD_MODE must be read-only or user-provisioning");
+    }
+    boolean userCreationEnabled = "true".equalsIgnoreCase(
+        env.getOrDefault("RFC_GUARD_ENABLE_USER_CREATE", "false"));
+    String userCreatePrefix = env.getOrDefault("RFC_GUARD_USER_PREFIX", "N8N_DEMO_").trim().toUpperCase();
+    String userCreateGroup = env.getOrDefault("RFC_GUARD_USER_GROUP", "").trim().toUpperCase();
+    int userCreateMaxValidityDays = integer(env, "RFC_GUARD_USER_VALIDITY_DAYS", 7, 1, 30);
+    String newUserInitialPassword = env.getOrDefault("RFC_GUARD_NEW_USER_PASSWORD", "");
+    if (mode.equals("user-provisioning")) {
+      if (!userCreationEnabled) {
+        throw new IllegalArgumentException("RFC_GUARD_ENABLE_USER_CREATE=true is required in user-provisioning mode");
+      }
+      if (!userCreatePrefix.matches("[A-Z0-9_]{1,11}")) {
+        throw new IllegalArgumentException("RFC_GUARD_USER_PREFIX must contain 1-11 uppercase letters, numbers, or underscores");
+      }
+      if (!userCreateGroup.matches("[A-Z0-9_]{1,12}")) {
+        throw new IllegalArgumentException("RFC_GUARD_USER_GROUP is required and must be a valid SAP user group");
+      }
+      if (newUserInitialPassword.length() < 12 || newUserInitialPassword.length() > 40) {
+        throw new IllegalArgumentException("RFC_GUARD_NEW_USER_PASSWORD must contain 12-40 characters");
+      }
+    }
+
     return new Configuration(
         integer(env, "PORT", 8080, 1, 65535), token,
         env.getOrDefault("SAP_DESTINATION_NAME", "SAP_RFC_GUARD"),
         integer(env, "RFC_GUARD_MAX_ROWS", 50, 1, 500),
         integer(env, "RFC_GUARD_INACTIVE_DAYS", 90, 1, 3650),
         integer(env, "RFC_GUARD_REQUEST_TIMEOUT_SECONDS", 30, 1, 300),
-        tlsKeystore, tlsPassword,
+        tlsKeystore, tlsPassword, mode, userCreationEnabled, userCreatePrefix,
+        userCreateGroup, userCreateMaxValidityDays, newUserInitialPassword,
         Map.copyOf(properties));
   }
 

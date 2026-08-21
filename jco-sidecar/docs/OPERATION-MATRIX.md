@@ -6,6 +6,7 @@
 | `getSu01UserDetail` | `BAPI_USER_GET_DETAIL` | `client`, `username` | One approved user record | One user |
 | `listSu01RiskAccounts` | Same governed list, classified locally | `client`, `maxRows`, `inactiveDays` | Non-active accounts plus `riskReason` | Same list ceiling |
 | `summarizeSu01Accounts` | Same governed list, aggregated locally | `client`, `maxRows`, `inactiveDays`, `dimension` | Counts only | Same list ceiling |
+| `createSu01CommunicationUser` | `BAPI_USER_CREATE1` + `BAPI_TRANSACTION_COMMIT` + governed detail verification | `client`, `username`, `firstName`, `lastName`, `email`, `validDays` | Creation and verification evidence only | One prefix-restricted Communication user |
 
 The HTTP caller cannot select an RFC function. RFC names exist only inside the
 compiled sidecar. Responses omit roles, profiles, password material, SNC data,
@@ -20,3 +21,10 @@ before an RFC call. `client` is evidence, not routing: when supplied it must
 match the client fixed in the JCo destination. `lastLogonAt` contains SAP local
 date and, when `LOGONDATA-LTIME` exists, local time without an invented UTC
 offset.
+
+The creation alias exists only in a separate `user-provisioning` sidecar. It
+requires `write=true`, `readOnly=false`, the header mode
+`user-provisioning`, and `CREATE <exact username>` confirmation. The sidecar
+fixes the SAP user type and group, supplies the initial password from its own
+root-protected secret, assigns no roles or profiles and never returns password
+material.

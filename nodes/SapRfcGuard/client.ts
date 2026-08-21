@@ -22,6 +22,7 @@ function requestOptions(
 	method: 'GET' | 'POST',
 	path: string,
 	correlationId: string,
+	mode: 'read-only' | 'user-provisioning' = 'read-only',
 	body?: Record<string, unknown>,
 ): RfcGuardRequestOptions {
 	const baseUrl = normalizeBaseUrl(credentials.baseUrl, credentials.allowInsecureHttp === true);
@@ -33,7 +34,7 @@ function requestOptions(
 			Authorization: `Bearer ${credentials.apiToken}`,
 			'Content-Type': 'application/json',
 			'X-Correlation-ID': correlationId,
-			'X-RFC-Guard-Mode': 'read-only',
+			'X-RFC-Guard-Mode': mode,
 		},
 		...(body ? { body } : {}),
 		json: true,
@@ -82,12 +83,44 @@ export async function executeApprovedOperation(
 			'POST',
 			`/v1/operations/${encodeURIComponent(operation)}/execute`,
 			correlationId,
+			'read-only',
 			{
 				operation,
 				parameters,
 				context: {
 					client: 'n8n-sap-rfc-guard',
 					readOnly: true,
+				},
+			},
+		),
+		credentials,
+	);
+}
+
+export async function executeApprovedWriteOperation(
+	credentials: SapRfcGuardCredentials,
+	httpRequest: RfcGuardHttpRequest,
+	operation: string,
+	parameters: Record<string, unknown>,
+	correlationId: string,
+	confirmation: string,
+): Promise<unknown> {
+	return await performRequest(
+		httpRequest,
+		requestOptions(
+			credentials,
+			'POST',
+			`/v1/operations/${encodeURIComponent(operation)}/execute`,
+			correlationId,
+			'user-provisioning',
+			{
+				operation,
+				parameters,
+				context: {
+					client: 'n8n-sap-rfc-guard',
+					readOnly: false,
+					write: true,
+					confirmation,
 				},
 			},
 		),

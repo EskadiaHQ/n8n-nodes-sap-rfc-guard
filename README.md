@@ -1,8 +1,9 @@
 # Logali SAP RFC Guard
 
-Security-first n8n community node for governed, read-only SAP RFC/BAPI operations.
+Security-first n8n community node for governed SAP RFC/BAPI reads and isolated
+Communication-user provisioning.
 
-> **Early access (`0.1.x`)**: the n8n governance contract and synthetic examples
+> **Early access (`0.2.x`)**: the n8n governance contract and synthetic examples
 > are testable now. Real SAP execution additionally requires the operated JCo
 > sidecar, SAP's proprietary JCo runtime and a least-privilege SAP identity.
 
@@ -16,7 +17,8 @@ n8n workflow -> Logali SAP RFC Guard -> HTTPS sidecar -> RFC/SNC -> SAP R/3, ECC
 
 ## Security model
 
-- Read-only first release. The sidecar must attest `readOnly: true` in health and execution data.
+- Read operations remain on a dedicated sidecar that must attest `readOnly: true`.
+- User creation requires a different sidecar, token and credential that attest `writeEnabled: true`.
 - Deny by default. Credentials contain an exact business-operation allowlist.
 - Technical names such as `BAPI_*`, `RFC_*`, `Z_*`, and `Y_*` are rejected in workflows.
 - Every operation has a required response-field allowlist.
@@ -24,6 +26,8 @@ n8n workflow -> Logali SAP RFC Guard -> HTTPS sidecar -> RFC/SNC -> SAP R/3, ECC
 - AI Tool use requires a separate credential opt-in and keeps the same operation and field policies.
 - SAP usernames and passwords never enter n8n credentials or workflow JSON.
 - HTTPS is mandatory except for an explicitly enabled isolated local contract test.
+- The only write alias creates one prefix-restricted Communication user with short validity, no roles and no profiles.
+- The initial password remains in the provisioning sidecar secret and is never sent to or returned by n8n.
 
 ## Sidecar contract
 
@@ -39,7 +43,7 @@ X-RFC-Guard-Mode: read-only
 {
   "status": "ok",
   "service": "sap-rfc-guard-jco",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "backend": { "systemId": "S4D", "client": "100" },
   "capabilities": { "readOnly": true, "operations": ["listSu01Users"] }
 }
@@ -134,8 +138,11 @@ listSu01Users, getSu01UserDetail
 
 ## Operations
 
-- **Connection / Test Connection** checks authentication and read-only capability.
+- **Connection / Test Connection** checks authentication and the capability expected by the selected credential mode.
 - **Read Operation / Execute Approved Read** runs one credential-allowlisted business operation.
+- **User Administration / Create Communication User** calls the isolated provisioning sidecar
+  after an exact `CREATE <username>` confirmation. It maps only to `BAPI_USER_CREATE1` and does
+  not accept technical function names, roles, profiles or password input from a workflow.
 
 The node is intentionally separate from Logali HANA Guard. They share governance principles but
 use different transports: HANA Guard speaks HANA SQL; SAP RFC Guard speaks HTTPS to an RFC
@@ -177,9 +184,14 @@ internal URLs. Expected results and business aliases are listed in `examples/su0
 The GitHub repository's `jco-sidecar/` directory contains the
 production-oriented Java 21 implementation for the
 same HTTPS contract. It uses SAP JCo only at runtime, exposes no technical RFC
-names, maps the two verified standard user BAPIs, requires TLS and fails closed
+names, maps the verified standard user BAPIs, requires TLS and fails closed
 when JCo, SAP configuration or SAP connectivity is unavailable. Its deployment
 is deliberately separate from the synthetic fixture.
+
+Provisioning is also separate from reporting: operate a second container with
+`RFC_GUARD_MODE=user-provisioning`, its own certificate/API token, a fixed
+username prefix and user group, a short maximum validity, and a server-held
+initial password. Never point a read-only credential at that endpoint.
 
 ## Development
 

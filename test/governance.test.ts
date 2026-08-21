@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
 	allowedDataFieldsForOperation,
+	assertCreateConfirmation,
 	assertOperationAllowed,
 	assertOperationId,
 	normalizeBaseUrl,
@@ -10,6 +11,7 @@ import {
 	parseDataFieldPolicies,
 	parseParametersJson,
 	validateGovernanceConfiguration,
+	USER_CREATE_OPERATION,
 } from '../nodes/SapRfcGuard/governance';
 
 const credentials = {
@@ -39,6 +41,33 @@ describe('operation governance', () => {
 		assert.throws(
 			() => assertOperationAllowed('createPurchaseOrder', allowed),
 			/not allowed/,
+		);
+	});
+
+	it('requires a dedicated opted-in credential and target-bound confirmation for creation', () => {
+		const provisioning = {
+			...credentials,
+			sidecarMode: 'userProvisioning' as const,
+			allowUserCreation: true,
+			allowedOperations: USER_CREATE_OPERATION,
+			dataFieldPoliciesJson: `{"${USER_CREATE_OPERATION}":["username","created"]}`,
+		};
+		assert.doesNotThrow(() => validateGovernanceConfiguration(provisioning));
+		assert.throws(
+			() => validateGovernanceConfiguration({ ...provisioning, allowUserCreation: false }),
+			/explicit credential opt-in/,
+		);
+		assert.throws(
+			() => validateGovernanceConfiguration({ ...provisioning, allowAiTool: true }),
+			/cannot be enabled for AI tools/,
+		);
+		assert.equal(
+			assertCreateConfirmation('n8n_demo_01', 'CREATE N8N_DEMO_01'),
+			'N8N_DEMO_01',
+		);
+		assert.throws(
+			() => assertCreateConfirmation('N8N_DEMO_01', 'CREATE OTHER_USER'),
+			/Confirmation must be exactly/,
 		);
 	});
 });

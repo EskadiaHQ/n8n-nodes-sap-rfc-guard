@@ -2,6 +2,7 @@ package com.logali.rfcguard;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -11,6 +12,9 @@ import java.util.Properties;
 final class JcoSapAdapter implements SapAdapter {
   private static final String USER_LIST_BAPI = "BAPI_USER_GETLIST";
   private static final String USER_DETAIL_BAPI = "BAPI_USER_GET_DETAIL";
+  private static final String USER_CREATE_BAPI = "BAPI_USER_CREATE1";
+  private static final String COMMIT_BAPI = "BAPI_TRANSACTION_COMMIT";
+  private static final String ROLLBACK_BAPI = "BAPI_TRANSACTION_ROLLBACK";
   private final Configuration configuration;
   private final Object destination;
   private final Clock clock;
@@ -69,6 +73,67 @@ final class JcoSapAdapter implements SapAdapter {
     return List.of(readDetail(username.toUpperCase(), configuration.inactiveDays()));
   }
 
+  @Override public Map<String, Object> createCommunicationUser(Map<String, Object> parameters) {
+    assertConfiguredClient(parameters);
+    if (!configuration.userCreationEnabled() || !"user-provisioning".equals(configuration.mode())) {
+      throw new IllegalArgumentException("USER_CREATION_DISABLED");
+    }
+    String username = string(parameters.get("username")).toUpperCase();
+    if (!username.matches("[A-Z0-9_]{1,12}")
+        || !username.startsWith(configuration.userCreatePrefix())) {
+      throw new IllegalArgumentException("USERNAME_PREFIX_INVALID");
+    }
+    String firstName = boundedText(parameters.get("firstName"), 1, 40, "FIRST_NAME_INVALID");
+    String lastName = boundedText(parameters.get("lastName"), 1, 40, "LAST_NAME_INVALID");
+    String email = string(parameters.get("email"));
+    if (!email.isBlank() && !email.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+      throw new IllegalArgumentException("EMAIL_INVALID");
+    }
+    int validDays = boundedInteger(parameters.get("validDays"), 1, 1,
+        configuration.userCreateMaxValidityDays(), "VALID_DAYS_INVALID");
+    LocalDate validFrom = LocalDate.now(clock);
+    LocalDate validTo = validFrom.plusDays(validDays - 1L);
+
+    Object function = function(USER_CREATE_BAPI);
+    Object imports = JcoReflection.invoke(function, "getImportParameterList");
+    JcoReflection.invoke(imports, "setValue", "USERNAME", username);
+    Object logon = JcoReflection.invoke(imports, "getStructure", "LOGONDATA");
+    JcoReflection.invoke(logon, "setValue", "USTYP", "C");
+    JcoReflection.invoke(logon, "setValue", "CLASS", configuration.userCreateGroup());
+    JcoReflection.invoke(logon, "setValue", "GLTGV", validFrom.format(DateTimeFormatter.BASIC_ISO_DATE));
+    JcoReflection.invoke(logon, "setValue", "GLTGB", validTo.format(DateTimeFormatter.BASIC_ISO_DATE));
+    Object password = JcoReflection.invoke(imports, "getStructure", "PASSWORD");
+    JcoReflection.invoke(password, "setValue", "BAPIPWD", configuration.newUserInitialPassword());
+    Object address = JcoReflection.invoke(imports, "getStructure", "ADDRESS");
+    JcoReflection.invoke(address, "setValue", "FIRSTNAME", firstName);
+    JcoReflection.invoke(address, "setValue", "LASTNAME", lastName);
+    if (!email.isBlank()) JcoReflection.invoke(address, "setValue", "E_MAIL", email);
+    JcoReflection.invoke(address, "setValue", "LANGU", "E");
+    try {
+      execute(function);
+      assertNoBapiErrors(function, "SAP rejected the governed user creation");
+      commit();
+    } catch (RuntimeException error) {
+      rollback();
+      throw error;
+    }
+
+    UserRecord verified = readDetail(username, configuration.inactiveDays());
+    var result = new LinkedHashMap<String, Object>();
+    result.put("username", username);
+    result.put("created", true);
+    result.put("verified", username.equals(verified.username()));
+    result.put("userType", "Communication");
+    result.put("userGroup", configuration.userCreateGroup());
+    result.put("validFrom", validFrom.toString());
+    result.put("validTo", validTo.toString());
+    result.put("accountStatus", verified.accountStatus());
+    result.put("rolesAssigned", 0);
+    result.put("profilesAssigned", 0);
+    result.put("passwordReturned", false);
+    return result;
+  }
+
   private UserRecord readDetail(String username, int inactiveDays) {
     Object function = function(USER_DETAIL_BAPI);
     Object imports = JcoReflection.invoke(function, "getImportParameterList");
@@ -119,6 +184,10 @@ final class JcoSapAdapter implements SapAdapter {
   private void execute(Object function) { JcoReflection.invoke(function, "execute", destination); }
 
   private void assertNoBapiErrors(Object function) {
+    assertNoBapiErrors(function, "SAP rejected the governed read");
+  }
+
+  private void assertNoBapiErrors(Object function, String prefix) {
     Object tables = JcoReflection.invoke(function, "getTableParameterList");
     Object returns = JcoReflection.invoke(tables, "getTable", "RETURN");
     int count = (Integer) JcoReflection.invoke(returns, "getNumRows");
@@ -126,9 +195,21 @@ final class JcoSapAdapter implements SapAdapter {
       JcoReflection.invoke(returns, "setRow", index);
       String type = JcoReflection.string(returns, "TYPE");
       if ("E".equals(type) || "A".equals(type) || "X".equals(type)) {
-        throw new IllegalStateException("SAP rejected the governed read: " + JcoReflection.string(returns, "MESSAGE"));
+        throw new IllegalStateException(prefix + ": " + JcoReflection.string(returns, "MESSAGE"));
       }
     }
+  }
+
+  private void commit() {
+    Object function = function(COMMIT_BAPI);
+    Object imports = JcoReflection.invoke(function, "getImportParameterList");
+    JcoReflection.invoke(imports, "setValue", "WAIT", "X");
+    execute(function);
+  }
+
+  private void rollback() {
+    try { execute(function(ROLLBACK_BAPI)); }
+    catch (RuntimeException ignored) { /* Preserve the original SAP error. */ }
   }
 
   private static String attribute(Object attributes, String getter) {
@@ -156,6 +237,13 @@ final class JcoSapAdapter implements SapAdapter {
   }
 
   private static String string(Object input) { return input == null ? "" : input.toString().trim(); }
+  private static String boundedText(Object input, int minimum, int maximum, String errorCode) {
+    String value = string(input);
+    if (value.length() < minimum || value.length() > maximum) {
+      throw new IllegalArgumentException(errorCode);
+    }
+    return value;
+  }
   private static String firstNonBlank(String first, String second) { return first == null || first.isBlank() ? second : first; }
 
   private static String optionalString(Object structure, String field) {

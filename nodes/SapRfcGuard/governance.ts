@@ -4,6 +4,7 @@ import type { SapRfcGuardCredentials } from './types';
 
 const OPERATION_ID = /^[a-z][a-zA-Z0-9.-]{0,63}$/;
 const DATA_FIELD = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
+export const USER_CREATE_OPERATION = 'createSu01CommunicationUser';
 
 export function parseAllowedOperations(value: string): Set<string> {
 	const operations = String(value ?? '')
@@ -129,11 +130,49 @@ export function validateGovernanceConfiguration(credentials: SapRfcGuardCredenti
 			);
 		}
 	}
+	const mode = credentials.sidecarMode ?? 'readOnly';
+	if (mode === 'readOnly' && allowed.has(USER_CREATE_OPERATION)) {
+		throw new OperationalError('A read-only credential cannot allow a user-creation operation.');
+	}
+	if (mode === 'userProvisioning') {
+		if (credentials.allowUserCreation !== true) {
+			throw new OperationalError('User provisioning requires explicit credential opt-in.');
+		}
+		if (credentials.allowAiTool === true) {
+			throw new OperationalError('User-provisioning credentials cannot be enabled for AI tools.');
+		}
+		if (allowed.size !== 1 || !allowed.has(USER_CREATE_OPERATION)) {
+			throw new OperationalError(
+				'User-provisioning credentials may allow only createSu01CommunicationUser.',
+			);
+		}
+	}
 	assertIntegerRange(credentials.connectionTimeout, 'Connection Timeout', 1000, 120000);
 	assertIntegerRange(credentials.requestTimeout, 'Request Timeout', 1000, 300000);
 	assertIntegerRange(credentials.maxRows, 'Maximum Rows', 1, 1000);
 	assertIntegerRange(credentials.maxRequestBytes, 'Maximum Request Size', 1024, 1048576);
 	assertIntegerRange(credentials.maxResponseBytes, 'Maximum Response Size', 1024, 5242880);
+}
+
+export function assertProvisioningCredential(credentials: SapRfcGuardCredentials): void {
+	if ((credentials.sidecarMode ?? 'readOnly') !== 'userProvisioning') {
+		throw new OperationalError('Select a dedicated User Provisioning credential for this operation.');
+	}
+	if (credentials.allowUserCreation !== true) {
+		throw new OperationalError('The selected credential does not allow user creation.');
+	}
+}
+
+export function assertCreateConfirmation(username: string, confirmation: string): string {
+	const normalizedUsername = username.trim().toUpperCase();
+	if (!/^[A-Z0-9_]{1,12}$/.test(normalizedUsername)) {
+		throw new OperationalError('SAP username must contain 1-12 uppercase letters, numbers, or underscores.');
+	}
+	const expected = `CREATE ${normalizedUsername}`;
+	if (confirmation.trim().toUpperCase() !== expected) {
+		throw new OperationalError(`Confirmation must be exactly ${expected}.`);
+	}
+	return normalizedUsername;
 }
 
 export function parseParametersJson(value: string): Record<string, unknown> {

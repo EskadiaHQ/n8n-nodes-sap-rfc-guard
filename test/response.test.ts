@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { sanitizeExecutionResponse, sanitizeHealthResponse } from '../nodes/SapRfcGuard/response';
+import {
+	sanitizeExecutionResponse,
+	sanitizeHealthResponse,
+	sanitizeProvisioningHealthResponse,
+	sanitizeWriteResponse,
+} from '../nodes/SapRfcGuard/response';
 
 describe('sidecar response governance', () => {
 	it('requires an explicit read-only health capability', () => {
@@ -132,6 +137,65 @@ describe('sidecar response governance', () => {
 					true,
 				),
 			/correlation ID does not match/,
+		);
+	});
+
+	it('accepts only attested provisioning health and projects a governed write result', () => {
+		assert.deepEqual(
+			sanitizeProvisioningHealthResponse({
+				status: 'ok',
+				service: 'sap-rfc-guard-jco-provisioning',
+				version: '0.2.0',
+				backend: { systemId: 'A4H', client: '250', release: '754' },
+				capabilities: {
+					readOnly: false,
+					writeEnabled: true,
+					operations: ['createSu01CommunicationUser'],
+				},
+			}),
+			{
+				connected: true,
+				status: 'ok',
+				service: 'sap-rfc-guard-jco-provisioning',
+				version: '0.2.0',
+				readOnly: false,
+				writeEnabled: true,
+				operations: ['createSu01CommunicationUser'],
+				backend: { systemId: 'A4H', client: '250', release: '754' },
+			},
+		);
+		const result = sanitizeWriteResponse(
+			{
+				operation: 'createSu01CommunicationUser',
+				correlationId: 'trace-write-1',
+				data: [{ username: 'N8N_DEMO_01', created: true, internalSecret: 'blocked' }],
+				meta: {
+					readOnly: false,
+					write: true,
+					source: 'sap-jco',
+					syntheticData: false,
+					backend: { systemId: 'A4H', client: '250', release: '754' },
+				},
+			},
+			'createSu01CommunicationUser',
+			'trace-write-1',
+			['username', 'created'],
+		);
+		assert.equal(result.username, 'N8N_DEMO_01');
+		assert.equal(result.created, true);
+		assert.equal('internalSecret' in result, false);
+		assert.deepEqual(result._rfc, {
+			operation: 'createSu01CommunicationUser',
+			correlationId: 'trace-write-1',
+			readOnly: false,
+			writeOperation: true,
+			source: 'sap-jco',
+			syntheticData: false,
+			backend: { systemId: 'A4H', client: '250', release: '754' },
+		});
+		assert.throws(
+			() => sanitizeProvisioningHealthResponse({ status: 'ok', capabilities: { readOnly: true } }),
+			/does not advertise user-provisioning/,
 		);
 	});
 });

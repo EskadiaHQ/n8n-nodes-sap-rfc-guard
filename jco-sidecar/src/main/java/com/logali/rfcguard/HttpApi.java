@@ -84,10 +84,15 @@ final class HttpApi implements AutoCloseable {
     try {
       adapter.ping();
       var backend = adapter.backend();
+      boolean provisioning = "user-provisioning".equals(configuration.mode());
       response(exchange, 200, Map.of(
-          "status", "ok", "service", "sap-rfc-guard-jco", "version", "0.1.2",
+          "status", "ok", "service", provisioning
+              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.2.0",
           "backend", backendMap(backend),
-          "capabilities", Map.of("readOnly", true, "operations", GuardService.OPERATIONS),
+          "capabilities", Map.of(
+              "readOnly", !provisioning,
+              "writeEnabled", provisioning && configuration.userCreationEnabled(),
+              "operations", provisioning ? GuardService.WRITE_OPERATIONS : GuardService.READ_OPERATIONS),
           "timestamp", Instant.now().toString(), "correlationId", correlationId));
     } catch (RuntimeException error) {
       response(exchange, 503, Map.of("status", "unavailable", "service", "sap-rfc-guard-jco",
@@ -105,21 +110,38 @@ final class HttpApi implements AutoCloseable {
       error(exchange, 403, "OPERATION_NOT_ALLOWED", correlationId); return;
     }
     String operation = path.substring(prefix.length(), path.length() - "/execute".length());
-    if (!GuardService.OPERATIONS.contains(operation)) { error(exchange, 403, "OPERATION_NOT_ALLOWED", correlationId); return; }
+    boolean provisioning = "user-provisioning".equals(configuration.mode());
+    boolean readOperation = !provisioning && GuardService.READ_OPERATIONS.contains(operation);
+    boolean writeOperation = provisioning && configuration.userCreationEnabled()
+        && GuardService.WRITE_OPERATIONS.contains(operation);
+    if (!readOperation && !writeOperation) { error(exchange, 403, "OPERATION_NOT_ALLOWED", correlationId); return; }
     try {
       byte[] bodyBytes = exchange.getRequestBody().readNBytes(MAX_BODY_BYTES + 1);
       if (bodyBytes.length > MAX_BODY_BYTES) { error(exchange, 413, "REQUEST_TOO_LARGE", correlationId); return; }
       Map<String, Object> body = mapper.readValue(bodyBytes, new TypeReference<>() {});
-      if (!operation.equals(body.get("operation")) || !Boolean.TRUE.equals(((Map<String, Object>) body.getOrDefault("context", Map.of())).get("readOnly"))) {
+      Map<String, Object> parameters = body.get("parameters") instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+      Map<String, Object> context = body.get("context") instanceof Map<?, ?> map
+          ? (Map<String, Object>) map : Map.of();
+      if (!operation.equals(body.get("operation"))) {
+        error(exchange, 403, "OPERATION_CONTRACT_REQUIRED", correlationId); return;
+      }
+      if (readOperation && (!Boolean.TRUE.equals(context.get("readOnly"))
+          || !"read-only".equals(exchange.getRequestHeaders().getFirst("X-RFC-Guard-Mode")))) {
         error(exchange, 403, "READ_ONLY_CONTRACT_REQUIRED", correlationId); return;
       }
-      Map<String, Object> parameters = body.get("parameters") instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+      if (writeOperation && (!Boolean.TRUE.equals(context.get("write"))
+          || !Boolean.FALSE.equals(context.get("readOnly"))
+          || !"user-provisioning".equals(exchange.getRequestHeaders().getFirst("X-RFC-Guard-Mode"))
+          || !expectedConfirmation(parameters).equals(context.get("confirmation")))) {
+        error(exchange, 403, "WRITE_CONFIRMATION_REQUIRED", correlationId); return;
+      }
       var data = withinTimeout(() -> service.execute(operation, parameters));
       var backend = adapter.backend();
       var meta = new LinkedHashMap<String, Object>();
       meta.put("source", "sap-jco");
       meta.put("syntheticData", false);
-      meta.put("readOnly", true);
+      meta.put("readOnly", readOperation);
+      meta.put("write", writeOperation);
       meta.put("operation", operation);
       meta.put("rowCount", data.size());
       meta.put("correlationId", correlationId);
@@ -128,19 +150,19 @@ final class HttpApi implements AutoCloseable {
     } catch (IllegalArgumentException error) {
       error(exchange, 400, safeCode(error.getMessage(), "INVALID_REQUEST"), correlationId);
     } catch (TimeoutException error) {
-      error(exchange, 504, "SAP_READ_TIMEOUT", correlationId);
+      error(exchange, 504, writeOperation ? "SAP_WRITE_TIMEOUT" : "SAP_READ_TIMEOUT", correlationId);
     } catch (ExecutionException error) {
       Throwable cause = error.getCause();
       if (cause instanceof IllegalArgumentException invalid) {
         error(exchange, 400, safeCode(invalid.getMessage(), "INVALID_REQUEST"), correlationId);
       } else {
-        error(exchange, 502, "SAP_READ_FAILED", correlationId);
+        error(exchange, 502, writeOperation ? "SAP_WRITE_FAILED" : "SAP_READ_FAILED", correlationId);
       }
     } catch (InterruptedException error) {
       Thread.currentThread().interrupt();
       error(exchange, 503, "REQUEST_INTERRUPTED", correlationId);
     } catch (Exception error) {
-      error(exchange, 502, "SAP_READ_FAILED", correlationId);
+      error(exchange, 502, writeOperation ? "SAP_WRITE_FAILED" : "SAP_READ_FAILED", correlationId);
     }
   }
 
@@ -190,13 +212,26 @@ final class HttpApi implements AutoCloseable {
     return candidate != null && candidate.matches("[A-Z][A-Z0-9_]{2,64}") ? candidate : fallback;
   }
 
+  private static String expectedConfirmation(Map<String, Object> parameters) {
+    Object username = parameters.get("username");
+    return username == null ? "" : "CREATE " + username.toString().trim().toUpperCase();
+  }
+
   private static String message(String code) {
     return switch (code) {
       case "UNAUTHORIZED" -> "A valid sidecar credential is required.";
       case "READ_ONLY_CONTRACT_REQUIRED" -> "A matching read-only business operation contract is required.";
+      case "WRITE_CONFIRMATION_REQUIRED" -> "A matching explicit confirmation is required for this user creation.";
+      case "OPERATION_CONTRACT_REQUIRED" -> "The operation body must match the governed route.";
       case "REQUEST_TOO_LARGE" -> "The request exceeds 64 KiB.";
       case "USERNAME_REQUIRED" -> "The username parameter is required.";
       case "USERNAME_INVALID" -> "The username parameter is invalid.";
+      case "USERNAME_PREFIX_INVALID" -> "The username does not match the configured provisioning prefix.";
+      case "USER_CREATION_DISABLED" -> "User creation is disabled for this sidecar.";
+      case "FIRST_NAME_INVALID" -> "firstName must contain 1-40 characters.";
+      case "LAST_NAME_INVALID" -> "lastName must contain 1-40 characters.";
+      case "EMAIL_INVALID" -> "email must be empty or syntactically valid.";
+      case "VALID_DAYS_INVALID" -> "validDays is outside the operated validity limit.";
       case "PARAMETER_NOT_ALLOWED" -> "The request contains a parameter not approved for this operation.";
       case "MAX_ROWS_INVALID" -> "maxRows must be an integer within the operated limit.";
       case "INACTIVE_DAYS_INVALID" -> "inactiveDays must be an integer between 1 and 3650.";
@@ -208,6 +243,8 @@ final class HttpApi implements AutoCloseable {
       case "SAP_READ_TIMEOUT" -> "SAP did not complete the governed read within the configured limit.";
       case "REQUEST_INTERRUPTED" -> "The governed read was interrupted before completion.";
       case "SAP_READ_FAILED" -> "SAP could not complete the governed read.";
+      case "SAP_WRITE_TIMEOUT" -> "SAP did not complete the governed user creation within the configured limit.";
+      case "SAP_WRITE_FAILED" -> "SAP could not complete the governed user creation.";
       default -> "The requested operation is not permitted.";
     };
   }
