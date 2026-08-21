@@ -15,8 +15,8 @@
       "parameters": {
         "resource": "readOperation",
         "businessOperationId": "listSu01Users",
-        "parametersJson": "{\"client\":\"100\",\"maxRows\":100,\"inactiveDays\":90}",
-        "limit": 100,
+        "parametersJson": "{\"client\":\"100\",\"maxRows\":50,\"inactiveDays\":90}",
+        "limit": 50,
         "includeMetadata": true
       },
       "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
