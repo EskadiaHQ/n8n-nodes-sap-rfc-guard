@@ -87,7 +87,7 @@ final class HttpApi implements AutoCloseable {
       boolean provisioning = "user-provisioning".equals(configuration.mode());
       response(exchange, 200, Map.of(
           "status", "ok", "service", provisioning
-              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.3.0",
+              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.4.0",
           "backend", backendMap(backend),
           "capabilities", Map.of(
               "readOnly", !provisioning,
@@ -247,8 +247,26 @@ final class HttpApi implements AutoCloseable {
       case "PLANT_INVALID" -> "plant must contain 1-4 letters or numbers.";
       case "VALUATION_AREA_INVALID" -> "valuationArea must contain 1-4 letters or numbers.";
       case "VALUATION_TYPE_INVALID" -> "valuationType contains unsupported characters or is too long.";
+      case "STORAGE_LOCATION_INVALID" -> "storageLocation must contain 1-4 letters or numbers.";
+      case "REQUESTED_DATE_INVALID" -> "requestedDate must use YYYY-MM-DD.";
+      case "REQUESTED_QUANTITY_INVALID" -> "requestedQuantity must be a positive decimal.";
+      case "UNIT_INVALID" -> "unit must contain 1-3 letters or numbers.";
+      case "CHECK_RULE_INVALID" -> "checkRule must contain 1-2 letters or numbers.";
       case "PURCHASE_ORDER_INVALID" -> "purchaseOrder must contain 1-10 digits.";
       case "SALES_DOCUMENT_INVALID" -> "salesDocument must contain 1-10 digits.";
+      case "DATE_RANGE_INVALID" -> "dateFrom and dateTo must use YYYY-MM-DD and span at most 31 days.";
+      case "VENDOR_INVALID" -> "vendor must contain 1-10 digits.";
+      case "CUSTOMER_INVALID" -> "customer must contain 1-10 digits.";
+      case "ACCOUNT_INVALID" -> "account must contain 1-10 digits.";
+      case "REFERENCE_INVALID" -> "reference must contain 1-64 characters.";
+      case "AMOUNT_INVALID" -> "amount must be a non-negative decimal.";
+      case "AMOUNT_TOLERANCE_INVALID" -> "amountTolerance must be a non-negative decimal.";
+      case "CURRENCY_INVALID" -> "currency must contain exactly three letters.";
+      case "INVOICE_DOCUMENT_INVALID" -> "invoiceDocument must contain 1-10 digits.";
+      case "FISCAL_YEAR_INVALID" -> "fiscalYear must contain exactly four digits.";
+      case "KEY_DATE_INVALID" -> "keyDate must use YYYY-MM-DD.";
+      case "NOTED_ITEMS_INVALID" -> "notedItems must be true or false.";
+      case "ACCOUNT_TYPE_INVALID" -> "accountType must be vendor or customer.";
       case "SAP_READ_TIMEOUT" -> "SAP did not complete the governed read within the configured limit.";
       case "REQUEST_INTERRUPTED" -> "The governed read was interrupted before completion.";
       case "SAP_READ_FAILED" -> "SAP could not complete the governed read.";

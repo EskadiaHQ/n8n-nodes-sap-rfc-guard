@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0 - 2026-08-21
+
+- Add typed ATP availability checks through `BAPI_MATERIAL_AVAILABILITY`.
+- Add bounded incoming-invoice list/detail operations and potential duplicate detection.
+- Add vendor/customer open-item reads and currency-grouped overdue summaries.
+- Expand purchase-order detail with schedules, confirmations, receipt/invoice history totals and derived open statuses.
+- Add governed vendor and customer detail operations with minimized contact, company and block/payment fields.
+- Add typed n8n resources and guarded parameter validation for every new alias.
+
 ## 0.3.1 - 2026-08-21
 
 - Correct the credential and node documentation links to the public `EskadiaHQ` repository.

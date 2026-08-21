@@ -1,0 +1,99 @@
+{
+  "id": "SapRfcDocumentAgent1",
+  "name": "415 · RFC Guard · REAL SAP · Governed Document Agent",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "public": false,
+        "availableInChat": false,
+        "options": {"responseMode": "lastNode", "autoSaveHighlightedData": false}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [0, 120],
+      "id": "e0534632-78fd-4f1b-9c1a-70f612f1e7c3",
+      "name": "When chat message received"
+    },
+    {
+      "parameters": {
+        "promptType": "auto",
+        "text": "={{ $json.chatInput }}",
+        "hasOutputParser": false,
+        "needsFallback": false,
+        "options": {
+          "systemMessage": "You are a read-only SAP document assistant. Use only the guarded SAP tools. Ask for a document number when it is missing. Base every factual answer on tool output, distinguish open, overdue, partial and complete states exactly as returned, and never perform or propose a write.",
+          "maxIterations": 5,
+          "returnIntermediateSteps": true,
+          "enableStreaming": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [340, 120],
+      "id": "83108a13-b480-4a44-b43e-cd21199b55a0",
+      "name": "Governed SAP Document Agent"
+    },
+    {
+      "parameters": {
+        "model": {"__rl": true, "value": "claude-haiku-4-5-20251001", "mode": "list", "cachedResultName": "Claude Haiku 4.5"},
+        "options": {"maxTokensToSample": 600, "temperature": 0}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.5,
+      "position": [200, 430],
+      "id": "851a805c-17da-4391-ad1c-fbf7087af525",
+      "name": "Authorized Chat Model"
+    },
+    {
+      "parameters": {
+        "resource": "purchaseOrder",
+        "operation": "getDetails",
+        "purchaseOrderId": "={{ $fromAI('purchaseOrder', 'Purchase order number with digits only', 'string') }}",
+        "correlationId": "",
+        "limit": 50,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [520, 430],
+      "id": "e47a7409-c291-4daf-a73a-f7552f2a644c",
+      "name": "Get Purchase Order Status"
+    },
+    {
+      "parameters": {
+        "resource": "salesOrder",
+        "operation": "getStatus",
+        "salesDocumentId": "={{ $fromAI('salesDocument', 'Sales order number with digits only', 'string') }}",
+        "correlationId": "",
+        "limit": 50,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [760, 430],
+      "id": "caf06b2d-1a2e-4b97-88bc-8c412ea34ff8",
+      "name": "Get Sales Order Status"
+    },
+    {
+      "parameters": {
+        "content": "## Guarded SAP document agent\n\nAttach an AI-enabled read-only RFC Guard credential to both tools and a chat-model credential to the model. The credential still limits aliases and response fields; the agent cannot supply a technical BAPI name.\n\nKeep inactive until approved purchase and sales document IDs are available."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -230],
+      "id": "38173655-bdae-493b-aa2c-f23956e67bd0",
+      "name": "Agent Safety Contract"
+    }
+  ],
+  "connections": {
+    "When chat message received": {"main": [[{"node": "Governed SAP Document Agent", "type": "main", "index": 0}]]},
+    "Authorized Chat Model": {"ai_languageModel": [[{"node": "Governed SAP Document Agent", "type": "ai_languageModel", "index": 0}]]},
+    "Get Purchase Order Status": {"ai_tool": [[{"node": "Governed SAP Document Agent", "type": "ai_tool", "index": 0}]]},
+    "Get Sales Order Status": {"ai_tool": [[{"node": "Governed SAP Document Agent", "type": "ai_tool", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1", "availableInMCP": false},
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

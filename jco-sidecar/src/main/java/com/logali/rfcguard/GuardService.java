@@ -1,5 +1,9 @@
 package com.logali.rfcguard;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -11,7 +15,10 @@ final class GuardService {
   static final Set<String> READ_OPERATIONS = Set.of(
       "listSu01Users", "getSu01UserDetail", "listSu01RiskAccounts", "summarizeSu01Accounts",
       "listCompanyCodes", "getCompanyCodeDetail", "searchMaterials", "getMaterialDetail",
-      "getPurchaseOrderDetail", "getSalesOrderStatus");
+      "checkMaterialAvailability", "getPurchaseOrderDetail", "getSalesOrderStatus",
+      "listIncomingInvoices", "getIncomingInvoiceDetail", "detectPotentialDuplicateInvoices",
+      "getVendorOpenItems", "getCustomerOpenItems", "summarizeOverdueItems",
+      "getVendorDetail", "getCustomerDetail");
   static final Set<String> WRITE_OPERATIONS = Set.of("createSu01CommunicationUser");
   private static final Map<String, Set<String>> PARAMETERS = Map.ofEntries(
       Map.entry("listSu01Users", Set.of("client", "maxRows", "inactiveDays", "userType", "accountStatus")),
@@ -22,8 +29,26 @@ final class GuardService {
       Map.entry("getCompanyCodeDetail", Set.of("client", "companyCode")),
       Map.entry("searchMaterials", Set.of("client", "maxRows", "materialPattern", "descriptionPattern")),
       Map.entry("getMaterialDetail", Set.of("client", "material", "plant", "valuationArea", "valuationType")),
+      Map.entry("checkMaterialAvailability", Set.of(
+          "client", "maxRows", "material", "plant", "storageLocation", "requestedDate",
+          "requestedQuantity", "unit", "checkRule")),
       Map.entry("getPurchaseOrderDetail", Set.of("client", "purchaseOrder")),
       Map.entry("getSalesOrderStatus", Set.of("client", "salesDocument")),
+      Map.entry("listIncomingInvoices", Set.of(
+          "client", "maxRows", "dateFrom", "dateTo", "vendor", "reference", "companyCode")),
+      Map.entry("getIncomingInvoiceDetail", Set.of(
+          "client", "invoiceDocument", "fiscalYear")),
+      Map.entry("detectPotentialDuplicateInvoices", Set.of(
+          "client", "maxRows", "dateFrom", "dateTo", "vendor", "reference", "amount",
+          "currency", "amountTolerance")),
+      Map.entry("getVendorOpenItems", Set.of(
+          "client", "maxRows", "companyCode", "vendor", "keyDate", "notedItems")),
+      Map.entry("getCustomerOpenItems", Set.of(
+          "client", "maxRows", "companyCode", "customer", "keyDate", "notedItems")),
+      Map.entry("summarizeOverdueItems", Set.of(
+          "client", "maxRows", "accountType", "companyCode", "account", "keyDate", "notedItems")),
+      Map.entry("getVendorDetail", Set.of("client", "vendor", "companyCode")),
+      Map.entry("getCustomerDetail", Set.of("client", "customer", "companyCode")),
       Map.entry("createSu01CommunicationUser", Set.of(
           "client", "username", "firstName", "lastName", "email", "validDays")));
   private static final Set<String> USER_TYPES = Set.of(
@@ -43,7 +68,10 @@ final class GuardService {
           .filter(user -> !"Active".equals(user.accountStatus())).toList(), true);
       case "summarizeSu01Accounts" -> summarize(adapter.listUsers(parameters), parameters);
       case "listCompanyCodes", "getCompanyCodeDetail", "searchMaterials", "getMaterialDetail",
-          "getPurchaseOrderDetail", "getSalesOrderStatus" ->
+          "checkMaterialAvailability", "getPurchaseOrderDetail", "getSalesOrderStatus",
+          "listIncomingInvoices", "getIncomingInvoiceDetail", "detectPotentialDuplicateInvoices",
+          "getVendorOpenItems", "getCustomerOpenItems", "summarizeOverdueItems",
+          "getVendorDetail", "getCustomerDetail" ->
           adapter.executeBusinessRead(operation, parameters);
       case "createSu01CommunicationUser" -> List.of(adapter.createCommunicationUser(parameters));
       default -> throw new IllegalArgumentException("OPERATION_NOT_ALLOWED");
@@ -92,11 +120,64 @@ final class GuardService {
       optionalPattern(parameters, "valuationType", "[A-Za-z0-9._/@\\-]{1,10}",
           "VALUATION_TYPE_INVALID");
     }
+    if ("checkMaterialAvailability".equals(operation)) {
+      requiredPattern(parameters, "material", "[A-Za-z0-9+._/@\\-]{1,40}", "MATERIAL_INVALID");
+      requiredPattern(parameters, "plant", "[A-Za-z0-9]{1,4}", "PLANT_INVALID");
+      optionalPattern(parameters, "storageLocation", "[A-Za-z0-9]{1,4}", "STORAGE_LOCATION_INVALID");
+      requiredIsoDate(parameters, "requestedDate", "REQUESTED_DATE_INVALID");
+      requiredDecimal(parameters, "requestedQuantity", true, "REQUESTED_QUANTITY_INVALID");
+      optionalPattern(parameters, "unit", "[A-Za-z0-9]{1,3}", "UNIT_INVALID");
+      optionalPattern(parameters, "checkRule", "[A-Za-z0-9]{1,2}", "CHECK_RULE_INVALID");
+    }
     if ("getPurchaseOrderDetail".equals(operation)) {
       requiredPattern(parameters, "purchaseOrder", "[0-9]{1,10}", "PURCHASE_ORDER_INVALID");
     }
     if ("getSalesOrderStatus".equals(operation)) {
       requiredPattern(parameters, "salesDocument", "[0-9]{1,10}", "SALES_DOCUMENT_INVALID");
+    }
+    if (Set.of("listIncomingInvoices", "detectPotentialDuplicateInvoices").contains(operation)) {
+      validateDateRange(parameters, "dateFrom", "dateTo", 31);
+      optionalPattern(parameters, "vendor", "[0-9]{1,10}", "VENDOR_INVALID");
+      optionalText(parameters, "reference", 1, 64, "REFERENCE_INVALID");
+      if (parameters.containsKey("companyCode")) {
+        requiredPattern(parameters, "companyCode", "[A-Za-z0-9]{4}", "COMPANY_CODE_INVALID");
+      }
+    }
+    if ("detectPotentialDuplicateInvoices".equals(operation)) {
+      requiredPattern(parameters, "vendor", "[0-9]{1,10}", "VENDOR_INVALID");
+      requiredText(parameters, "reference", 1, 64, "REFERENCE_INVALID");
+      requiredDecimal(parameters, "amount", false, "AMOUNT_INVALID");
+      requiredPattern(parameters, "currency", "[A-Za-z]{3}", "CURRENCY_INVALID");
+      optionalDecimal(parameters, "amountTolerance", false, "AMOUNT_TOLERANCE_INVALID");
+    }
+    if ("getIncomingInvoiceDetail".equals(operation)) {
+      requiredPattern(parameters, "invoiceDocument", "[0-9]{1,10}", "INVOICE_DOCUMENT_INVALID");
+      requiredPattern(parameters, "fiscalYear", "[0-9]{4}", "FISCAL_YEAR_INVALID");
+    }
+    if (Set.of("getVendorOpenItems", "getCustomerOpenItems", "summarizeOverdueItems")
+        .contains(operation)) {
+      requiredPattern(parameters, "companyCode", "[A-Za-z0-9]{4}", "COMPANY_CODE_INVALID");
+      requiredIsoDate(parameters, "keyDate", "KEY_DATE_INVALID");
+      optionalBoolean(parameters, "notedItems", "NOTED_ITEMS_INVALID");
+    }
+    if ("getVendorOpenItems".equals(operation)) {
+      requiredPattern(parameters, "vendor", "[0-9]{1,10}", "VENDOR_INVALID");
+    }
+    if ("getCustomerOpenItems".equals(operation)) {
+      requiredPattern(parameters, "customer", "[0-9]{1,10}", "CUSTOMER_INVALID");
+    }
+    if ("summarizeOverdueItems".equals(operation)) {
+      optionalEnum(parameters, "accountType", Set.of("vendor", "customer"), "ACCOUNT_TYPE_INVALID");
+      if (!parameters.containsKey("accountType")) throw new IllegalArgumentException("ACCOUNT_TYPE_INVALID");
+      requiredPattern(parameters, "account", "[0-9]{1,10}", "ACCOUNT_INVALID");
+    }
+    if ("getVendorDetail".equals(operation)) {
+      requiredPattern(parameters, "vendor", "[0-9]{1,10}", "VENDOR_INVALID");
+      requiredPattern(parameters, "companyCode", "[A-Za-z0-9]{4}", "COMPANY_CODE_INVALID");
+    }
+    if ("getCustomerDetail".equals(operation)) {
+      requiredPattern(parameters, "customer", "[0-9]{1,10}", "CUSTOMER_INVALID");
+      requiredPattern(parameters, "companyCode", "[A-Za-z0-9]{4}", "COMPANY_CODE_INVALID");
     }
     if ("createSu01CommunicationUser".equals(operation)) {
       requiredUsername(parameters);
@@ -151,6 +232,61 @@ final class GuardService {
       int value = Integer.parseInt(raw.toString());
       if (value < minimum || value > maximum) throw new NumberFormatException();
     } catch (NumberFormatException error) {
+      throw new IllegalArgumentException(errorCode);
+    }
+  }
+
+  private static LocalDate requiredIsoDate(
+      Map<String, Object> parameters, String key, String errorCode) {
+    Object raw = parameters.get(key);
+    try {
+      if (raw == null) throw new DateTimeParseException("missing", "", 0);
+      return LocalDate.parse(raw.toString().trim());
+    } catch (DateTimeParseException error) {
+      throw new IllegalArgumentException(errorCode);
+    }
+  }
+
+  private static void validateDateRange(
+      Map<String, Object> parameters, String fromKey, String toKey, int maximumDays) {
+    LocalDate from = requiredIsoDate(parameters, fromKey, "DATE_RANGE_INVALID");
+    LocalDate to = requiredIsoDate(parameters, toKey, "DATE_RANGE_INVALID");
+    long days = ChronoUnit.DAYS.between(from, to);
+    if (days < 0 || days > maximumDays) throw new IllegalArgumentException("DATE_RANGE_INVALID");
+  }
+
+  private static void requiredDecimal(
+      Map<String, Object> parameters, String key, boolean positive, String errorCode) {
+    Object raw = parameters.get(key);
+    if (raw == null) throw new IllegalArgumentException(errorCode);
+    validateDecimal(raw, positive, errorCode);
+  }
+
+  private static void optionalDecimal(
+      Map<String, Object> parameters, String key, boolean positive, String errorCode) {
+    Object raw = parameters.get(key);
+    if (raw == null || raw.toString().isBlank()) return;
+    validateDecimal(raw, positive, errorCode);
+  }
+
+  private static void validateDecimal(Object raw, boolean positive, String errorCode) {
+    try {
+      BigDecimal value = new BigDecimal(raw.toString().trim());
+      if (value.scale() > 6 || value.precision() > 20
+          || (positive ? value.signum() <= 0 : value.signum() < 0)) {
+        throw new NumberFormatException();
+      }
+    } catch (NumberFormatException error) {
+      throw new IllegalArgumentException(errorCode);
+    }
+  }
+
+  private static void optionalBoolean(
+      Map<String, Object> parameters, String key, String errorCode) {
+    Object raw = parameters.get(key);
+    if (raw == null) return;
+    if (raw instanceof Boolean) return;
+    if (!Set.of("true", "false").contains(raw.toString().toLowerCase())) {
       throw new IllegalArgumentException(errorCode);
     }
   }

@@ -1,0 +1,55 @@
+{
+  "id": "SapRfcMaterialAtp1",
+  "name": "415 · RFC Guard · REAL SAP · Material ATP Availability",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "03c820ae-2fb6-43a1-9f78-c2c2fb9d1164",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "material",
+        "operation": "checkAvailability",
+        "materialId": "TG0001",
+        "plant": "1010",
+        "storageLocation": "",
+        "requestedDate": "2026-08-25",
+        "requestedQuantity": 10,
+        "unit": "",
+        "checkRule": "",
+        "correlationId": "material-atp-demo",
+        "limit": 10,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [320, 0],
+      "id": "59231633-31af-4ec4-bb84-99408eaeff46",
+      "name": "Check Material Availability"
+    },
+    {
+      "parameters": {
+        "content": "## Real ATP check\n\nChange material, plant, requested date and quantity only to values approved for the target client. The node returns SAP confirmation dates and quantities; it does not infer stock from the material master.\n\nKeep inactive and unavailable in MCP. Select the operated read-only credential after import."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -230],
+      "id": "42005ec1-08f1-4339-a6ed-f9913ab59ae1",
+      "name": "ATP Test Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[{"node": "Check Material Availability", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {"executionOrder": "v1", "binaryMode": "separate", "availableInMCP": false},
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

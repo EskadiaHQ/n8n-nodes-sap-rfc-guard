@@ -27,8 +27,15 @@ repository and from the container image.
 - `getCompanyCodeDetail` uses `BAPI_COMPANYCODE_GETDETAIL`.
 - `searchMaterials` uses bounded `BAPI_MATERIAL_GETLIST`.
 - `getMaterialDetail` uses `BAPI_MATERIAL_GET_DETAIL`.
-- `getPurchaseOrderDetail` uses `BAPI_PO_GETDETAIL1` for one document.
+- `checkMaterialAvailability` uses `BAPI_MATERIAL_AVAILABILITY` for bounded ATP confirmations.
+- `getPurchaseOrderDetail` uses `BAPI_PO_GETDETAIL1` for one document and projects
+  delivery schedules, supplier confirmations, goods-receipt/invoice history and open quantities.
 - `getSalesOrderStatus` uses `BAPI_SALESORDER_GETSTATUS` for one document.
+- `listIncomingInvoices` and `getIncomingInvoiceDetail` use the standard MM-IV invoice BAPIs.
+- `detectPotentialDuplicateInvoices` performs a bounded, sidecar-side comparison of invoice candidates.
+- `getVendorOpenItems` and `getCustomerOpenItems` use the standard AP/AR open-item BAPIs.
+- `summarizeOverdueItems` derives due dates and ageing buckets without exposing raw SAP tables.
+- `getVendorDetail` and `getCustomerDetail` use fixed standard master-detail BAPIs.
 - `createSu01CommunicationUser` uses `BAPI_USER_CREATE1`, commits explicitly and
   reads the account back for verification.
 
@@ -42,7 +49,7 @@ returns `SAP_READ_TIMEOUT` instead of holding the n8n request indefinitely.
 ## Build and test
 
 ```bash
-docker build -t logali-sap-rfc-guard-jco:0.3.0 .
+docker build -t logali-sap-rfc-guard-jco:0.4.0 .
 ```
 
 The image build runs the unit tests. It does not need the proprietary JCo files;

@@ -1,0 +1,97 @@
+{
+  "id": "SapRfcFinanceRead1",
+  "name": "415 · RFC Guard · REAL SAP · Invoice and Overdue Reads",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 0],
+      "id": "3e8537d0-d77e-4483-a990-5ea32787efc3",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "resource": "incomingInvoice",
+        "operation": "getMany",
+        "dateFrom": "2026-08-01",
+        "dateTo": "2026-08-21",
+        "vendorFilter": "",
+        "referenceFilter": "",
+        "invoiceCompanyCode": "",
+        "correlationId": "incoming-invoice-list-demo",
+        "limit": 25,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [320, -120],
+      "id": "f735317e-92fb-4b72-b587-65b2a7ce9f71",
+      "name": "List Incoming Invoices"
+    },
+    {
+      "parameters": {
+        "resource": "incomingInvoice",
+        "operation": "detectDuplicates",
+        "dateFrom": "2026-08-01",
+        "dateTo": "2026-08-21",
+        "vendorId": "REPLACE_WITH_VENDOR",
+        "invoiceReference": "REPLACE_WITH_REFERENCE",
+        "invoiceAmount": 0,
+        "invoiceCurrency": "EUR",
+        "amountTolerance": 0.01,
+        "correlationId": "duplicate-invoice-demo",
+        "limit": 25,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [320, 20],
+      "id": "fe038f75-b0a7-4ec6-a30d-aa70eb11d868",
+      "name": "Detect Potential Duplicate Invoices"
+    },
+    {
+      "parameters": {
+        "resource": "openItem",
+        "operation": "summarize",
+        "accountType": "vendor",
+        "accountId": "REPLACE_WITH_VENDOR",
+        "openItemCompanyCode": "REPLACE_WITH_COMPANY_CODE",
+        "keyDate": "2026-08-21",
+        "notedItems": false,
+        "correlationId": "vendor-overdue-summary-demo",
+        "limit": 100,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [320, 160],
+      "id": "ef457836-f554-4389-8d17-e15b6252fc54",
+      "name": "Summarize Vendor Overdue Items"
+    },
+    {
+      "parameters": {
+        "content": "## Governed finance reads\n\nThe invoice list can run with a bounded date range. Duplicate detection and overdue summaries deliberately keep placeholders until an approved vendor, reference and company code are supplied. No invoice or accounting document is changed.\n\nKeep inactive and unavailable in MCP."
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, -300],
+      "id": "d8655cb1-f9c8-4ac3-914f-4c3c7569570d",
+      "name": "Finance Test Instructions"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [[
+        {"node": "List Incoming Invoices", "type": "main", "index": 0},
+        {"node": "Detect Potential Duplicate Invoices", "type": "main", "index": 0},
+        {"node": "Summarize Vendor Overdue Items", "type": "main", "index": 0}
+      ]]
+    }
+  },
+  "settings": {"executionOrder": "v1", "binaryMode": "separate", "availableInMCP": false},
+  "pinData": {},
+  "meta": {"templateCredsSetupCompleted": false},
+  "tags": []
+}

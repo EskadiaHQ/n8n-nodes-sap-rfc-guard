@@ -3,7 +3,7 @@
 SAP RFC Guard is published early so its security contract and deployment model
 can be reviewed before a production SAP identity is connected.
 
-## Available in `0.3.x`
+## Available in `0.4.x`
 
 - Governed HTTPS contract between n8n and an operated sidecar.
 - Deny-by-default business aliases and response-field policies.
@@ -14,7 +14,12 @@ can be reviewed before a production SAP identity is connected.
 - Optional, isolated Communication-user provisioning through `BAPI_USER_CREATE1`.
 - Target-bound confirmation, username prefix, short validity, fixed user group and zero role/profile assignment.
 - First-class read resources for company codes, materials, purchase orders and sales-order status.
-- Six release-verified fixed BAPI mappings with operation-specific input and output contracts.
+- Thirteen release-verified fixed business BAPI mappings with operation-specific input and output contracts.
+- ATP confirmation dates and quantities for one material, plant, quantity and requested date.
+- Incoming-invoice list/detail and bounded potential-duplicate detection.
+- Vendor/customer open items, due-date calculation and overdue ageing summaries.
+- Purchase-order schedules, confirmations and receipt/invoice totals.
+- Minimized vendor and customer master summaries.
 
 ## Before `1.0.0`
 
@@ -24,13 +29,8 @@ can be reviewed before a production SAP identity is connected.
 - Verify direct and load-balanced destination modes.
 - Complete positive purchase-order and sales-order reads with approved document IDs.
 
-## Candidate `0.4.x` work
+## Candidate `0.5.x` work
 
-- Material ATP through a fixed `BAPI_MATERIAL_AVAILABILITY` alias.
-- Incoming-invoice listing/detail and bounded duplicate-candidate detection.
-- Vendor and customer open-item reads plus overdue summaries.
-- Purchase-order delivery schedules, confirmations and receipt/invoice totals.
-- Governed vendor and customer master summaries.
 - Real AI Agent, email and approval workflows using only fixed aliases.
 - Optional metrics endpoint without user data or SAP credentials.
 - Operation-specific concurrency and rate limits.

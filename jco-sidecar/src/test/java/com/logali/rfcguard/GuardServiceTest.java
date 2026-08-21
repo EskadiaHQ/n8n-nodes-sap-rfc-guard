@@ -62,7 +62,7 @@ final class GuardServiceTest {
             "email", "not-an-email"))).getMessage());
   }
 
-  @Test void routesTheSixFixedBusinessBapiAliases() {
+  @Test void routesTheFixedBusinessBapiAliases() {
     var service = new GuardService(new StubAdapter());
     assertEquals("listCompanyCodes", service.execute("listCompanyCodes", Map.of()).getFirst().get("operation"));
     assertEquals("getCompanyCodeDetail", service.execute(
@@ -75,6 +75,38 @@ final class GuardServiceTest {
         "getPurchaseOrderDetail", Map.of("purchaseOrder", "4500000001")).getFirst().get("operation"));
     assertEquals("getSalesOrderStatus", service.execute(
         "getSalesOrderStatus", Map.of("salesDocument", "5000000001")).getFirst().get("operation"));
+    assertEquals("checkMaterialAvailability", service.execute(
+        "checkMaterialAvailability", Map.of("material", "TG11", "plant", "1000",
+            "requestedDate", "2026-08-25", "requestedQuantity", 2)).getFirst().get("operation"));
+    assertEquals("listIncomingInvoices", service.execute(
+        "listIncomingInvoices", Map.of("dateFrom", "2026-08-01", "dateTo", "2026-08-21"))
+        .getFirst().get("operation"));
+    assertEquals("getIncomingInvoiceDetail", service.execute(
+        "getIncomingInvoiceDetail", Map.of("invoiceDocument", "5100000001", "fiscalYear", "2026"))
+        .getFirst().get("operation"));
+    assertEquals("detectPotentialDuplicateInvoices", service.execute(
+        "detectPotentialDuplicateInvoices", Map.of(
+            "dateFrom", "2026-08-01", "dateTo", "2026-08-21", "vendor", "100012",
+            "reference", "SUP-42", "amount", "120.50", "currency", "EUR"))
+        .getFirst().get("operation"));
+    assertEquals("getVendorOpenItems", service.execute(
+        "getVendorOpenItems", Map.of(
+            "companyCode", "1000", "vendor", "100012", "keyDate", "2026-08-21"))
+        .getFirst().get("operation"));
+    assertEquals("getCustomerOpenItems", service.execute(
+        "getCustomerOpenItems", Map.of(
+            "companyCode", "1000", "customer", "100012", "keyDate", "2026-08-21"))
+        .getFirst().get("operation"));
+    assertEquals("summarizeOverdueItems", service.execute(
+        "summarizeOverdueItems", Map.of(
+            "accountType", "vendor", "account", "100012", "companyCode", "1000",
+            "keyDate", "2026-08-21")).getFirst().get("operation"));
+    assertEquals("getVendorDetail", service.execute(
+        "getVendorDetail", Map.of("vendor", "100012", "companyCode", "1000"))
+        .getFirst().get("operation"));
+    assertEquals("getCustomerDetail", service.execute(
+        "getCustomerDetail", Map.of("customer", "100012", "companyCode", "1000"))
+        .getFirst().get("operation"));
   }
 
   @Test void rejectsInvalidBusinessIdentifiersBeforeCallingSap() {
@@ -89,6 +121,21 @@ final class GuardServiceTest {
         () -> service.execute("getPurchaseOrderDetail", Map.of("purchaseOrder", "PO-1"))).getMessage());
     assertEquals("SALES_DOCUMENT_INVALID", assertThrows(IllegalArgumentException.class,
         () -> service.execute("getSalesOrderStatus", Map.of("salesDocument", "../1"))).getMessage());
+    assertEquals("REQUESTED_QUANTITY_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("checkMaterialAvailability", Map.of(
+            "material", "TG11", "plant", "1000", "requestedDate", "2026-08-25",
+            "requestedQuantity", 0))).getMessage());
+    assertEquals("DATE_RANGE_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("listIncomingInvoices", Map.of(
+            "dateFrom", "2026-08-21", "dateTo", "2026-01-01"))).getMessage());
+    assertEquals("CURRENCY_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("detectPotentialDuplicateInvoices", Map.of(
+            "dateFrom", "2026-08-01", "dateTo", "2026-08-21", "vendor", "100012",
+            "reference", "SUP-42", "amount", "120.50", "currency", "EU"))).getMessage());
+    assertEquals("ACCOUNT_TYPE_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("summarizeOverdueItems", Map.of(
+            "accountType", "employee", "account", "100012", "companyCode", "1000",
+            "keyDate", "2026-08-21"))).getMessage());
   }
 
   private static final class StubAdapter implements SapAdapter {

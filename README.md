@@ -3,7 +3,7 @@
 Security-first n8n community node for governed SAP RFC/BAPI reads and isolated
 Communication-user provisioning.
 
-> **Early access (`0.3.x`)**: the n8n governance contract and synthetic examples
+> **Early access (`0.4.x`)**: the n8n governance contract and synthetic examples
 > are testable now. Real SAP execution additionally requires the operated JCo
 > sidecar, SAP's proprietary JCo runtime and a least-privilege SAP identity.
 
@@ -43,7 +43,7 @@ X-RFC-Guard-Mode: read-only
 {
   "status": "ok",
   "service": "sap-rfc-guard-jco",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "backend": { "systemId": "S4D", "client": "100" },
   "capabilities": { "readOnly": true, "operations": ["listSu01Users"] }
 }
@@ -143,8 +143,14 @@ listSu01Users, getSu01UserDetail
 - **Company Code / Get Details** maps to `BAPI_COMPANYCODE_GETDETAIL`.
 - **Material / Search** maps to bounded `BAPI_MATERIAL_GETLIST`.
 - **Material / Get Details** maps to `BAPI_MATERIAL_GET_DETAIL`.
-- **Purchase Order / Get Details** maps to `BAPI_PO_GETDETAIL1`.
+- **Material / Check Availability** maps to `BAPI_MATERIAL_AVAILABILITY` and returns ATP confirmation dates and quantities.
+- **Purchase Order / Get Details** maps to `BAPI_PO_GETDETAIL1`, including schedules, confirmations and receipt/invoice totals.
 - **Sales Order / Get Status** maps to `BAPI_SALESORDER_GETSTATUS`.
+- **Incoming Invoice / Get Many** and **Get Details** map to the standard MM-IV list/detail BAPIs.
+- **Incoming Invoice / Detect Potential Duplicates** compares vendor, normalized reference, amount, currency and a bounded date window.
+- **Open Item / Get Vendor Open Items** and **Get Customer Open Items** map to the standard AP/AR open-item BAPIs.
+- **Open Item / Summarize Overdue Items** calculates due dates and currency-grouped ageing buckets in the sidecar.
+- **Vendor / Get Details** and **Customer / Get Details** return minimized master and company-code data.
 - **Read Operation / Execute Approved Read** runs one credential-allowlisted business operation.
 - **User Administration / Create Communication User** calls the isolated provisioning sidecar
   after an exact `CREATE <username>` confirmation. It maps only to `BAPI_USER_CREATE1` and does
@@ -154,6 +160,11 @@ The visible operation description states which fixed BAPI is used, but the BAPI
 name is never editable. See [`docs/BAPI-VS-BADI.md`](docs/BAPI-VS-BADI.md) for
 the distinction between an external business interface and an internal SAP
 enhancement point.
+
+An example least-data field policy for the `0.4.0` business aliases is provided
+in [`docs/BUSINESS-FIELD-POLICIES.example.json`](docs/BUSINESS-FIELD-POLICIES.example.json).
+Copy only the operations the credential must use and narrow the fields further
+when the workflow does not need all of them.
 
 The node is intentionally separate from Logali HANA Guard. They share governance principles but
 use different transports: HANA Guard speaks HANA SQL; SAP RFC Guard speaks HTTPS to an RFC
@@ -190,9 +201,9 @@ technical users, locked/expired/inactive accounts, one governed user detail, acc
 summary, last-logon review and system readiness. Their JSON files contain no credential IDs or
 internal URLs. Expected results and business aliases are listed in `examples/su01/README.md`.
 
-`examples/business/real/` adds first-class company, material, purchase-order and
-sales-order examples. Document workflows contain placeholders and fail input
-validation until an approved ID from the target client is supplied.
+`examples/business/real/` adds first-class company, material, ATP, purchasing,
+sales, invoice and open-item examples. Document workflows contain placeholders
+and fail input validation until an approved ID from the target client is supplied.
 
 ## Real SAP JCo sidecar
 

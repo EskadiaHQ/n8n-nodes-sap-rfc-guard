@@ -92,7 +92,11 @@ export class SapRfcGuard implements INodeType {
 		inputs: [NodeConnectionTypes.Main],
 		outputs: [NodeConnectionTypes.Main],
 		credentials: [
-			{ name: 'sapRfcGuardApi', required: true, testedBy: 'sapRfcGuardConnectionTest' },
+			{
+				name: 'sapRfcGuardApi',
+				required: true,
+				testedBy: 'sapRfcGuardConnectionTest',
+			},
 		],
 		properties: [
 			{
@@ -103,11 +107,15 @@ export class SapRfcGuard implements INodeType {
 				options: [
 					{ name: 'Company Code', value: 'companyCode' },
 					{ name: 'Connection', value: 'connection' },
+					{ name: 'Customer', value: 'customer' },
+					{ name: 'Incoming Invoice', value: 'incomingInvoice' },
 					{ name: 'Material', value: 'material' },
+					{ name: 'Open Item', value: 'openItem' },
 					{ name: 'Purchase Order', value: 'purchaseOrder' },
 					{ name: 'Read Operation', value: 'readOperation' },
 					{ name: 'Sales Order', value: 'salesOrder' },
 					{ name: 'User Administration', value: 'userAdministration' },
+					{ name: 'Vendor', value: 'vendor' },
 				],
 				default: 'connection',
 			},
@@ -157,7 +165,9 @@ export class SapRfcGuard implements INodeType {
 				default: '',
 				placeholder: '1000',
 				required: true,
-				displayOptions: { show: { resource: ['companyCode'], operation: ['getDetails'] } },
+				displayOptions: {
+					show: { resource: ['companyCode'], operation: ['getDetails'] },
+				},
 			},
 			{
 				displayName: 'Operation',
@@ -166,6 +176,12 @@ export class SapRfcGuard implements INodeType {
 				noDataExpression: true,
 				displayOptions: { show: { resource: ['material'] } },
 				options: [
+					{
+						name: 'Check Availability',
+						value: 'checkAvailability',
+						action: 'Check material availability',
+						description: 'Uses the fixed BAPI_MATERIAL_AVAILABILITY ATP mapping',
+					},
 					{
 						name: 'Get Details',
 						value: 'getDetails',
@@ -188,7 +204,9 @@ export class SapRfcGuard implements INodeType {
 				default: '',
 				placeholder: 'TG*',
 				description: 'Optional SAP-style material pattern; use * as the wildcard',
-				displayOptions: { show: { resource: ['material'], operation: ['search'] } },
+				displayOptions: {
+					show: { resource: ['material'], operation: ['search'] },
+				},
 			},
 			{
 				displayName: 'Description Contains',
@@ -197,7 +215,9 @@ export class SapRfcGuard implements INodeType {
 				default: '',
 				placeholder: 'bike',
 				description: 'Optional text filter; wildcards are added when omitted',
-				displayOptions: { show: { resource: ['material'], operation: ['search'] } },
+				displayOptions: {
+					show: { resource: ['material'], operation: ['search'] },
+				},
 			},
 			{
 				displayName: 'Material',
@@ -205,7 +225,12 @@ export class SapRfcGuard implements INodeType {
 				type: 'string',
 				default: '',
 				required: true,
-				displayOptions: { show: { resource: ['material'], operation: ['getDetails'] } },
+				displayOptions: {
+					show: {
+						resource: ['material'],
+						operation: ['getDetails', 'checkAvailability'],
+					},
+				},
 			},
 			{
 				displayName: 'Plant',
@@ -213,8 +238,67 @@ export class SapRfcGuard implements INodeType {
 				type: 'string',
 				default: '',
 				placeholder: '1000',
-				description: 'Optional plant for plant-specific material data',
-				displayOptions: { show: { resource: ['material'], operation: ['getDetails'] } },
+				description: 'Required for ATP; optional for material details',
+				displayOptions: {
+					show: {
+						resource: ['material'],
+						operation: ['getDetails', 'checkAvailability'],
+					},
+				},
+			},
+			{
+				displayName: 'Storage Location',
+				name: 'storageLocation',
+				type: 'string',
+				default: '',
+				placeholder: '0001',
+				description: 'Optional storage location for the ATP check',
+				displayOptions: {
+					show: { resource: ['material'], operation: ['checkAvailability'] },
+				},
+			},
+			{
+				displayName: 'Requested Date',
+				name: 'requestedDate',
+				type: 'string',
+				default: '',
+				placeholder: '2026-08-25',
+				required: true,
+				displayOptions: {
+					show: { resource: ['material'], operation: ['checkAvailability'] },
+				},
+			},
+			{
+				displayName: 'Requested Quantity',
+				name: 'requestedQuantity',
+				type: 'number',
+				typeOptions: { minValue: 0.000001 },
+				default: 1,
+				required: true,
+				displayOptions: {
+					show: { resource: ['material'], operation: ['checkAvailability'] },
+				},
+			},
+			{
+				displayName: 'Unit',
+				name: 'unit',
+				type: 'string',
+				default: '',
+				placeholder: 'EA',
+				description: 'Optional SAP unit of measure',
+				displayOptions: {
+					show: { resource: ['material'], operation: ['checkAvailability'] },
+				},
+			},
+			{
+				displayName: 'Check Rule',
+				name: 'checkRule',
+				type: 'string',
+				default: '',
+				description: 'Optional ATP checking rule configured in SAP',
+				displayOptions: {
+					show: { resource: ['material'], operation: ['checkAvailability'] },
+				},
 			},
 			{
 				displayName: 'Valuation Area',
@@ -223,7 +307,9 @@ export class SapRfcGuard implements INodeType {
 				default: '',
 				placeholder: '1000',
 				description: 'Optional valuation area for price data',
-				displayOptions: { show: { resource: ['material'], operation: ['getDetails'] } },
+				displayOptions: {
+					show: { resource: ['material'], operation: ['getDetails'] },
+				},
 			},
 			{
 				displayName: 'Valuation Type',
@@ -231,7 +317,9 @@ export class SapRfcGuard implements INodeType {
 				type: 'string',
 				default: '',
 				description: 'Optional split-valuation type',
-				displayOptions: { show: { resource: ['material'], operation: ['getDetails'] } },
+				displayOptions: {
+					show: { resource: ['material'], operation: ['getDetails'] },
+				},
 			},
 			{
 				displayName: 'Operation',
@@ -284,12 +372,299 @@ export class SapRfcGuard implements INodeType {
 				displayOptions: { show: { resource: ['salesOrder'] } },
 			},
 			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['incomingInvoice'] } },
+				options: [
+					{
+						name: 'Detect Potential Duplicates',
+						value: 'detectDuplicates',
+						action: 'Detect potential duplicate incoming invoices',
+						description: 'Compares vendor, reference, amount, currency, and a bounded date window',
+					},
+					{
+						name: 'Get Details',
+						value: 'getDetails',
+						action: 'Get incoming invoice details',
+						description: 'Uses the fixed BAPI_INCOMINGINVOICE_GETDETAIL mapping',
+					},
+					{
+						name: 'Get Many',
+						value: 'getMany',
+						action: 'List incoming invoices',
+						description:
+							'Uses the fixed BAPI_INCOMINGINVOICE_GETLIST mapping and a bounded date window',
+					},
+				],
+				default: 'getMany',
+			},
+			{
+				displayName: 'Invoice Document',
+				name: 'invoiceDocumentId',
+				type: 'string',
+				default: '',
+				placeholder: '5100000001',
+				required: true,
+				displayOptions: {
+					show: { resource: ['incomingInvoice'], operation: ['getDetails'] },
+				},
+			},
+			{
+				displayName: 'Fiscal Year',
+				name: 'fiscalYear',
+				type: 'string',
+				default: '',
+				placeholder: '2026',
+				required: true,
+				displayOptions: {
+					show: { resource: ['incomingInvoice'], operation: ['getDetails'] },
+				},
+			},
+			{
+				displayName: 'Date From',
+				name: 'dateFrom',
+				type: 'string',
+				default: '',
+				placeholder: '2026-08-01',
+				required: true,
+				description: 'Document-date range start; the sidecar allows at most 31 days',
+				displayOptions: {
+					show: {
+						resource: ['incomingInvoice'],
+						operation: ['getMany', 'detectDuplicates'],
+					},
+				},
+			},
+			{
+				displayName: 'Date To',
+				name: 'dateTo',
+				type: 'string',
+				default: '',
+				placeholder: '2026-08-21',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['incomingInvoice'],
+						operation: ['getMany', 'detectDuplicates'],
+					},
+				},
+			},
+			{
+				displayName: 'Vendor',
+				name: 'vendorId',
+				type: 'string',
+				default: '',
+				placeholder: '100012',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['incomingInvoice'],
+						operation: ['detectDuplicates'],
+					},
+				},
+			},
+			{
+				displayName: 'Vendor',
+				name: 'vendorFilter',
+				type: 'string',
+				default: '',
+				placeholder: '100012',
+				description: 'Optional vendor filter',
+				displayOptions: {
+					show: { resource: ['incomingInvoice'], operation: ['getMany'] },
+				},
+			},
+			{
+				displayName: 'Reference',
+				name: 'invoiceReference',
+				type: 'string',
+				default: '',
+				placeholder: 'SUP-INV-2026-0042',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['incomingInvoice'],
+						operation: ['detectDuplicates'],
+					},
+				},
+			},
+			{
+				displayName: 'Reference',
+				name: 'referenceFilter',
+				type: 'string',
+				default: '',
+				description: 'Optional exact SAP reference filter',
+				displayOptions: {
+					show: { resource: ['incomingInvoice'], operation: ['getMany'] },
+				},
+			},
+			{
+				displayName: 'Gross Amount',
+				name: 'invoiceAmount',
+				type: 'number',
+				typeOptions: { minValue: 0 },
+				default: 0,
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['incomingInvoice'],
+						operation: ['detectDuplicates'],
+					},
+				},
+			},
+			{
+				displayName: 'Currency',
+				name: 'invoiceCurrency',
+				type: 'string',
+				default: 'EUR',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['incomingInvoice'],
+						operation: ['detectDuplicates'],
+					},
+				},
+			},
+			{
+				displayName: 'Amount Tolerance',
+				name: 'amountTolerance',
+				type: 'number',
+				typeOptions: { minValue: 0 },
+				default: 0.01,
+				description: 'Maximum absolute amount difference for a duplicate candidate',
+				displayOptions: {
+					show: {
+						resource: ['incomingInvoice'],
+						operation: ['detectDuplicates'],
+					},
+				},
+			},
+			{
+				displayName: 'Company Code',
+				name: 'invoiceCompanyCode',
+				type: 'string',
+				default: '',
+				placeholder: '1000',
+				description: 'Optional post-read company-code filter',
+				displayOptions: {
+					show: { resource: ['incomingInvoice'], operation: ['getMany'] },
+				},
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['openItem'] } },
+				options: [
+					{
+						name: 'Get Customer Open Items',
+						value: 'getCustomer',
+						action: 'Get customer open items',
+					},
+					{
+						name: 'Get Vendor Open Items',
+						value: 'getVendor',
+						action: 'Get vendor open items',
+					},
+					{
+						name: 'Summarize Overdue Items',
+						value: 'summarize',
+						action: 'Summarize overdue open items',
+					},
+				],
+				default: 'getVendor',
+			},
+			{
+				displayName: 'Account Type',
+				name: 'accountType',
+				type: 'options',
+				options: [
+					{ name: 'Customer', value: 'customer' },
+					{ name: 'Vendor', value: 'vendor' },
+				],
+				default: 'vendor',
+				displayOptions: {
+					show: { resource: ['openItem'], operation: ['summarize'] },
+				},
+			},
+			{
+				displayName: 'Account',
+				name: 'accountId',
+				type: 'string',
+				default: '',
+				placeholder: '100012',
+				required: true,
+				displayOptions: { show: { resource: ['openItem'] } },
+			},
+			{
+				displayName: 'Company Code',
+				name: 'openItemCompanyCode',
+				type: 'string',
+				default: '',
+				placeholder: '1000',
+				required: true,
+				displayOptions: { show: { resource: ['openItem'] } },
+			},
+			{
+				displayName: 'Key Date',
+				name: 'keyDate',
+				type: 'string',
+				default: '',
+				placeholder: '2026-08-21',
+				required: true,
+				displayOptions: { show: { resource: ['openItem'] } },
+			},
+			{
+				displayName: 'Include Noted Items',
+				name: 'notedItems',
+				type: 'boolean',
+				default: false,
+				displayOptions: { show: { resource: ['openItem'] } },
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['vendor', 'customer'] } },
+				options: [
+					{
+						name: 'Get Details',
+						value: 'getDetails',
+						action: 'Get governed account details',
+					},
+				],
+				default: 'getDetails',
+			},
+			{
+				displayName: 'Account Number',
+				name: 'masterAccountId',
+				type: 'string',
+				default: '',
+				placeholder: '100012',
+				required: true,
+				displayOptions: { show: { resource: ['vendor', 'customer'] } },
+			},
+			{
+				displayName: 'Company Code',
+				name: 'masterCompanyCode',
+				type: 'string',
+				default: '',
+				placeholder: '1000',
+				required: true,
+				displayOptions: { show: { resource: ['vendor', 'customer'] } },
+			},
+			{
 				displayName: 'SAP Username',
 				name: 'username',
 				type: 'string',
 				default: '',
 				placeholder: 'N8N_DEMO_01',
-				description: '1-12 uppercase letters, numbers, or underscores; the sidecar also enforces its configured prefix',
+				description:
+					'1-12 uppercase letters, numbers, or underscores; the sidecar also enforces its configured prefix',
 				required: true,
 				displayOptions: { show: { resource: ['userAdministration'] } },
 			},
@@ -400,8 +775,16 @@ export class SapRfcGuard implements INodeType {
 				displayOptions: {
 					show: {
 						resource: [
-							'readOperation', 'userAdministration', 'companyCode', 'material',
-							'purchaseOrder', 'salesOrder',
+							'readOperation',
+							'userAdministration',
+							'companyCode',
+							'material',
+							'purchaseOrder',
+							'salesOrder',
+							'incomingInvoice',
+							'openItem',
+							'vendor',
+							'customer',
 						],
 					},
 				},
@@ -414,7 +797,19 @@ export class SapRfcGuard implements INodeType {
 				default: 50,
 				description: 'Max number of results to return',
 				displayOptions: {
-					show: { resource: ['readOperation', 'companyCode', 'material', 'purchaseOrder', 'salesOrder'] },
+					show: {
+						resource: [
+							'readOperation',
+							'companyCode',
+							'material',
+							'purchaseOrder',
+							'salesOrder',
+							'incomingInvoice',
+							'openItem',
+							'vendor',
+							'customer',
+						],
+					},
 				},
 			},
 			{
@@ -424,7 +819,19 @@ export class SapRfcGuard implements INodeType {
 				default: true,
 				description: 'Whether to include operation, correlation, limit, and read-only evidence',
 				displayOptions: {
-					show: { resource: ['readOperation', 'companyCode', 'material', 'purchaseOrder', 'salesOrder'] },
+					show: {
+						resource: [
+							'readOperation',
+							'companyCode',
+							'material',
+							'purchaseOrder',
+							'salesOrder',
+							'incomingInvoice',
+							'openItem',
+							'vendor',
+							'customer',
+						],
+					},
 				},
 			},
 		],
@@ -458,10 +865,16 @@ export class SapRfcGuard implements INodeType {
 					);
 					if ((credentials.sidecarMode ?? 'readOnly') === 'userProvisioning') {
 						sanitizeProvisioningHealthResponse(result);
-						return { status: 'OK', message: 'Governed SAP user-provisioning sidecar connection successful' };
+						return {
+							status: 'OK',
+							message: 'Governed SAP user-provisioning sidecar connection successful',
+						};
 					}
 					sanitizeHealthResponse(result);
-					return { status: 'OK', message: 'Read-only RFC sidecar connection successful' };
+					return {
+						status: 'OK',
+						message: 'Read-only RFC sidecar connection successful',
+					};
 				} catch (error) {
 					return {
 						status: 'Error',
@@ -488,11 +901,7 @@ export class SapRfcGuard implements INodeType {
 				const httpRequest = httpRequestAdapter(this.helpers.httpRequest);
 
 				if (resource === 'connection') {
-					const result = await testSidecarConnection(
-						credentials,
-						httpRequest,
-						randomUUID(),
-					);
+					const result = await testSidecarConnection(credentials, httpRequest, randomUUID());
 					enforceSerializedByteLimit(
 						result,
 						Number(credentials.maxResponseBytes),
@@ -525,7 +934,11 @@ export class SapRfcGuard implements INodeType {
 						email: String(this.getNodeParameter('email', itemIndex, '')).trim(),
 						validDays: this.getNodeParameter('validDays', itemIndex, 1) as number,
 					};
-					enforceSerializedByteLimit(parameters, Number(credentials.maxRequestBytes), 'Operation parameters');
+					enforceSerializedByteLimit(
+						parameters,
+						Number(credentials.maxRequestBytes),
+						'Operation parameters',
+					);
 					const traceId = correlationId(
 						this.getNodeParameter('correlationId', itemIndex, '') as string,
 					);
@@ -538,7 +951,11 @@ export class SapRfcGuard implements INodeType {
 						traceId,
 						confirmation,
 					);
-					enforceSerializedByteLimit(response, Number(credentials.maxResponseBytes), 'Sidecar response');
+					enforceSerializedByteLimit(
+						response,
+						Number(credentials.maxResponseBytes),
+						'Sidecar response',
+					);
 					outputItems.push({
 						json: sanitizeWriteResponse(response, operation, traceId, allowedFields) as IDataObject,
 						pairedItem: { item: itemIndex },
@@ -546,79 +963,185 @@ export class SapRfcGuard implements INodeType {
 					continue;
 				}
 
-					let operation: string;
-					let parameters: Record<string, unknown>;
-					const requestedLimit = this.getNodeParameter('limit', itemIndex, 50) as number;
-					if (resource === 'readOperation') {
-						operation = assertOperationId(
-							this.getNodeParameter('businessOperationId', itemIndex) as string,
+				let operation: string;
+				let parameters: Record<string, unknown>;
+				const requestedLimit = this.getNodeParameter('limit', itemIndex, 50) as number;
+				if (resource === 'readOperation') {
+					operation = assertOperationId(
+						this.getNodeParameter('businessOperationId', itemIndex) as string,
+					);
+					parameters = parseParametersJson(
+						this.getNodeParameter('parametersJson', itemIndex, '{}') as string,
+					);
+				} else if (resource === 'companyCode') {
+					const selected = this.getNodeParameter('operation', itemIndex) as string;
+					operation = selected === 'getDetails' ? 'getCompanyCodeDetail' : 'listCompanyCodes';
+					parameters = {};
+					if (selected === 'getDetails') {
+						parameters.companyCode = String(this.getNodeParameter('companyCode', itemIndex))
+							.trim()
+							.toUpperCase();
+					}
+				} else if (resource === 'material') {
+					const selected = this.getNodeParameter('operation', itemIndex) as string;
+					operation =
+						selected === 'getDetails'
+							? 'getMaterialDetail'
+							: selected === 'checkAvailability'
+								? 'checkMaterialAvailability'
+								: 'searchMaterials';
+					parameters = {};
+					if (selected === 'getDetails') {
+						parameters.material = String(this.getNodeParameter('materialId', itemIndex))
+							.trim()
+							.toUpperCase();
+						setOptionalParameter(
+							parameters,
+							'plant',
+							this.getNodeParameter('plant', itemIndex, ''),
 						);
-						parameters = parseParametersJson(
-							this.getNodeParameter('parametersJson', itemIndex, '{}') as string,
+						setOptionalParameter(
+							parameters,
+							'valuationArea',
+							this.getNodeParameter('valuationArea', itemIndex, ''),
 						);
-					} else if (resource === 'companyCode') {
-						const selected = this.getNodeParameter('operation', itemIndex) as string;
-						operation = selected === 'getDetails' ? 'getCompanyCodeDetail' : 'listCompanyCodes';
-						parameters = {};
-						if (selected === 'getDetails') {
-							parameters.companyCode = String(
-								this.getNodeParameter('companyCode', itemIndex),
-							).trim().toUpperCase();
-						}
-					} else if (resource === 'material') {
-						const selected = this.getNodeParameter('operation', itemIndex) as string;
-						operation = selected === 'getDetails' ? 'getMaterialDetail' : 'searchMaterials';
-						parameters = {};
-						if (selected === 'getDetails') {
-							parameters.material = String(
-								this.getNodeParameter('materialId', itemIndex),
-							).trim().toUpperCase();
-							setOptionalParameter(parameters, 'plant', this.getNodeParameter('plant', itemIndex, ''));
-							setOptionalParameter(
-								parameters,
-								'valuationArea',
-								this.getNodeParameter('valuationArea', itemIndex, ''),
-							);
-							setOptionalParameter(
-								parameters,
-								'valuationType',
-								this.getNodeParameter('valuationType', itemIndex, ''),
-							);
-						} else {
-							parameters.maxRows = Math.min(requestedLimit, Number(credentials.maxRows));
-							setOptionalParameter(
-								parameters,
-								'materialPattern',
-								this.getNodeParameter('materialPattern', itemIndex, ''),
-							);
-							setOptionalParameter(
-								parameters,
-								'descriptionPattern',
-								this.getNodeParameter('descriptionPattern', itemIndex, ''),
-							);
-						}
-					} else if (resource === 'purchaseOrder') {
-						operation = 'getPurchaseOrderDetail';
+						setOptionalParameter(
+							parameters,
+							'valuationType',
+							this.getNodeParameter('valuationType', itemIndex, ''),
+						);
+					} else if (selected === 'checkAvailability') {
 						parameters = {
-							purchaseOrder: String(
-								this.getNodeParameter('purchaseOrderId', itemIndex),
-							).trim(),
+							maxRows: Math.min(requestedLimit, Number(credentials.maxRows)),
+							material: String(this.getNodeParameter('materialId', itemIndex)).trim().toUpperCase(),
+							plant: String(this.getNodeParameter('plant', itemIndex)).trim().toUpperCase(),
+							requestedDate: String(this.getNodeParameter('requestedDate', itemIndex)).trim(),
+							requestedQuantity: this.getNodeParameter('requestedQuantity', itemIndex),
 						};
-					} else if (resource === 'salesOrder') {
-						operation = 'getSalesOrderStatus';
+						setOptionalParameter(
+							parameters,
+							'storageLocation',
+							this.getNodeParameter('storageLocation', itemIndex, ''),
+						);
+						setOptionalParameter(parameters, 'unit', this.getNodeParameter('unit', itemIndex, ''));
+						setOptionalParameter(
+							parameters,
+							'checkRule',
+							this.getNodeParameter('checkRule', itemIndex, ''),
+						);
+					} else {
+						parameters.maxRows = Math.min(requestedLimit, Number(credentials.maxRows));
+						setOptionalParameter(
+							parameters,
+							'materialPattern',
+							this.getNodeParameter('materialPattern', itemIndex, ''),
+						);
+						setOptionalParameter(
+							parameters,
+							'descriptionPattern',
+							this.getNodeParameter('descriptionPattern', itemIndex, ''),
+						);
+					}
+				} else if (resource === 'purchaseOrder') {
+					operation = 'getPurchaseOrderDetail';
+					parameters = {
+						purchaseOrder: String(this.getNodeParameter('purchaseOrderId', itemIndex)).trim(),
+					};
+				} else if (resource === 'salesOrder') {
+					operation = 'getSalesOrderStatus';
+					parameters = {
+						salesDocument: String(this.getNodeParameter('salesDocumentId', itemIndex)).trim(),
+					};
+				} else if (resource === 'incomingInvoice') {
+					const selected = this.getNodeParameter('operation', itemIndex) as string;
+					operation =
+						selected === 'getDetails'
+							? 'getIncomingInvoiceDetail'
+							: selected === 'detectDuplicates'
+								? 'detectPotentialDuplicateInvoices'
+								: 'listIncomingInvoices';
+					if (selected === 'getDetails') {
 						parameters = {
-							salesDocument: String(
-								this.getNodeParameter('salesDocumentId', itemIndex),
-							).trim(),
+							invoiceDocument: String(this.getNodeParameter('invoiceDocumentId', itemIndex)).trim(),
+							fiscalYear: String(this.getNodeParameter('fiscalYear', itemIndex)).trim(),
 						};
 					} else {
-						throw new OperationalError('Unsupported SAP RFC Guard resource.');
+						parameters = {
+							maxRows: Math.min(requestedLimit, Number(credentials.maxRows)),
+							dateFrom: String(this.getNodeParameter('dateFrom', itemIndex)).trim(),
+							dateTo: String(this.getNodeParameter('dateTo', itemIndex)).trim(),
+						};
+						if (selected === 'detectDuplicates') {
+							parameters.vendor = String(this.getNodeParameter('vendorId', itemIndex)).trim();
+							parameters.reference = String(
+								this.getNodeParameter('invoiceReference', itemIndex),
+							).trim();
+							parameters.amount = this.getNodeParameter('invoiceAmount', itemIndex);
+							parameters.currency = String(this.getNodeParameter('invoiceCurrency', itemIndex))
+								.trim()
+								.toUpperCase();
+							parameters.amountTolerance = this.getNodeParameter(
+								'amountTolerance',
+								itemIndex,
+								0.01,
+							);
+						} else {
+							setOptionalParameter(
+								parameters,
+								'vendor',
+								this.getNodeParameter('vendorFilter', itemIndex, ''),
+							);
+							setOptionalParameter(
+								parameters,
+								'reference',
+								this.getNodeParameter('referenceFilter', itemIndex, ''),
+							);
+							setOptionalParameter(
+								parameters,
+								'companyCode',
+								this.getNodeParameter('invoiceCompanyCode', itemIndex, ''),
+							);
+						}
 					}
-					const allowedOperations = parseAllowedOperations(credentials.allowedOperations);
-					assertOperationAllowed(operation, allowedOperations);
-					const fieldPolicies = parseDataFieldPolicies(credentials.dataFieldPoliciesJson);
-					const allowedFields = allowedDataFieldsForOperation(operation, fieldPolicies);
-					enforceSerializedByteLimit(
+				} else if (resource === 'openItem') {
+					const selected = this.getNodeParameter('operation', itemIndex) as string;
+					operation =
+						selected === 'getCustomer'
+							? 'getCustomerOpenItems'
+							: selected === 'summarize'
+								? 'summarizeOverdueItems'
+								: 'getVendorOpenItems';
+					parameters = {
+						maxRows: Math.min(requestedLimit, Number(credentials.maxRows)),
+						companyCode: String(this.getNodeParameter('openItemCompanyCode', itemIndex))
+							.trim()
+							.toUpperCase(),
+						keyDate: String(this.getNodeParameter('keyDate', itemIndex)).trim(),
+						notedItems: this.getNodeParameter('notedItems', itemIndex, false),
+					};
+					const account = String(this.getNodeParameter('accountId', itemIndex)).trim();
+					if (selected === 'getCustomer') parameters.customer = account;
+					else if (selected === 'getVendor') parameters.vendor = account;
+					else {
+						parameters.account = account;
+						parameters.accountType = this.getNodeParameter('accountType', itemIndex);
+					}
+				} else if (resource === 'vendor' || resource === 'customer') {
+					operation = resource === 'vendor' ? 'getVendorDetail' : 'getCustomerDetail';
+					parameters = {
+						[resource]: String(this.getNodeParameter('masterAccountId', itemIndex)).trim(),
+						companyCode: String(this.getNodeParameter('masterCompanyCode', itemIndex))
+							.trim()
+							.toUpperCase(),
+					};
+				} else {
+					throw new OperationalError('Unsupported SAP RFC Guard resource.');
+				}
+				const allowedOperations = parseAllowedOperations(credentials.allowedOperations);
+				assertOperationAllowed(operation, allowedOperations);
+				const fieldPolicies = parseDataFieldPolicies(credentials.dataFieldPoliciesJson);
+				const allowedFields = allowedDataFieldsForOperation(operation, fieldPolicies);
+				enforceSerializedByteLimit(
 					parameters,
 					Number(credentials.maxRequestBytes),
 					'Operation parameters',
@@ -643,7 +1166,7 @@ export class SapRfcGuard implements INodeType {
 					operation,
 					traceId,
 					allowedFields,
-						requestedLimit,
+					requestedLimit,
 					Number(credentials.maxRows),
 					this.getNodeParameter('includeMetadata', itemIndex, true) as boolean,
 				);
@@ -656,7 +1179,9 @@ export class SapRfcGuard implements INodeType {
 			} catch (error) {
 				if (this.continueOnFail()) {
 					outputItems.push({
-						json: { error: error instanceof Error ? error.message : String(error) },
+						json: {
+							error: error instanceof Error ? error.message : String(error),
+						},
 						pairedItem: { item: itemIndex },
 					});
 					continue;
