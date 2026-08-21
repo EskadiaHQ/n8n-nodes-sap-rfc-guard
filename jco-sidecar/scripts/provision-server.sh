@@ -13,6 +13,7 @@ fi
 
 install -d -m 0750 "$STACK_DIR" "$VENDOR_DIR"
 install -d -m 0700 "$TLS_DIR"
+chown root:10001 "$VENDOR_DIR"
 
 if [[ ! -f "$TLS_DIR/ca.crt" ]]; then
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out "$TLS_DIR/ca.key"

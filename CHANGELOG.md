@@ -12,6 +12,7 @@
 - Add executable contract-fixture tests and expand the JCo sidecar suite to 17 tests.
 - Add importable last-logon review and cross-release system-readiness workflows.
 - Update Jackson to its patched 2.18 line and refresh the n8n development/release tooling.
+- Fix JCo volume traversal while keeping the proprietary runtime owned by root and read-only to the service group.
 
 ## 0.1.1 - 2026-08-21
 

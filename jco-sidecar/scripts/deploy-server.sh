@@ -29,7 +29,7 @@ jar tf "$VENDOR_DIR/sapjco3.jar" | grep -q 'com/sap/conn/jco/JCoDestination.clas
 }
 
 chmod 0640 "$VENDOR_DIR/sapjco3.jar" "$VENDOR_DIR/libsapjco3.so"
-chown 10001:10001 "$VENDOR_DIR/sapjco3.jar" "$VENDOR_DIR/libsapjco3.so"
+chown root:10001 "$VENDOR_DIR/sapjco3.jar" "$VENDOR_DIR/libsapjco3.so"
 docker compose -f "$STACK_DIR/compose.yml" config --quiet
 docker compose -f "$STACK_DIR/compose.yml" up -d
 
