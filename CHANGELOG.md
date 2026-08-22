@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3 - 2026-08-22
+
+- Align the SAP RFC Guard node icon with the Logali HANA Guard visual family.
+- Replace only the HANA database badge with a bidirectional connection mark for RFC.
+- Keep node behavior, credentials and sidecar contracts unchanged.
+
 ## 0.4.2 - 2026-08-21
 
 - Normalize the locale-formatted SAP dates returned by purchase-order schedule tables.
