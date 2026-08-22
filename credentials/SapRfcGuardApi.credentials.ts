@@ -5,7 +5,7 @@ export class SapRfcGuardApi implements ICredentialType {
 
 	displayName = 'Logali SAP RFC Guard API';
 
-	icon = 'file:sapRfcGuardCredential.svg' as const;
+	icon = 'file:sapRfcGuardCredential-v047.svg' as const;
 
 	documentationUrl =
 		'https://github.com/EskadiaHQ/n8n-nodes-sap-rfc-guard#credential-configuration';

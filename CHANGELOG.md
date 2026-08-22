@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.7 - 2026-08-22
+
+- Adopt the approved high-resolution Logali Guard family artwork for the RFC node and credential.
+- Show `RFC` as the connection itself, with one outbound and one inbound directional arrow.
+- Use a new versioned PNG asset without changing node behavior, credentials, or sidecar contracts.
+
 ## 0.4.6 - 2026-08-22
 
 - Restore the exact HANA Guard family artwork as the RFC node base instead of the visually unrelated replacement frame.

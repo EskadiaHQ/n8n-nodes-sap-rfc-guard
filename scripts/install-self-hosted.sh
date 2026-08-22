@@ -2,9 +2,9 @@
 set -euo pipefail
 
 PACKAGE_NAME=n8n-nodes-sap-rfc-guard
-PACKAGE_VERSION=0.4.6
+PACKAGE_VERSION=0.4.7
 PACKAGE_FILE="${PACKAGE_NAME}-${PACKAGE_VERSION}.tgz"
-EXPECTED_SHA256=cabbe9a85657a6b2751ee4e4477616b1de28445af44d8c9b3d5ada84c6f70997
+EXPECTED_SHA256=356b118da80056770b30a80314f64e118040054086cefe5ee73f4148141a85ec
 CONTAINER="${N8N_CONTAINER:-logali-n8n-restore-n8n-1}"
 PACKAGE_PATH="${1:-}"
 
@@ -58,7 +58,7 @@ if [ -e "$target" ]; then
     exit 0
   fi
   case "$installed" in
-    0.1.0|0.1.1|0.1.2|0.2.0|0.3.0|0.3.1|0.4.0|0.4.1|0.4.2|0.4.3|0.4.4|0.4.5) ;;
+    0.1.0|0.1.1|0.1.2|0.2.0|0.3.0|0.3.1|0.4.0|0.4.1|0.4.2|0.4.3|0.4.4|0.4.5|0.4.6) ;;
     *)
       echo "ERROR: actualización no prevista desde $PACKAGE_NAME@$installed" >&2
       exit 1
