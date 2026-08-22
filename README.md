@@ -43,7 +43,7 @@ X-RFC-Guard-Mode: read-only
 {
   "status": "ok",
   "service": "sap-rfc-guard-jco",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "backend": { "systemId": "S4D", "client": "100" },
   "capabilities": { "readOnly": true, "operations": ["listSu01Users"] }
 }
@@ -91,6 +91,12 @@ Expected response:
 
 The source name is evidence returned by the sidecar, never an operation accepted from the
 workflow.
+
+The private standalone sidecar uses `Authorization: Bearer`. For the SAP BTP
+Tomcat deployment, select `X-RFC-Guard-Token (SAP BTP)` in the n8n credential;
+XSUAA reserves the standard bearer header before the request reaches the
+application, while the custom header remains protected by the same HTTPS route
+and secret comparison.
 
 ## Install the early-access node
 

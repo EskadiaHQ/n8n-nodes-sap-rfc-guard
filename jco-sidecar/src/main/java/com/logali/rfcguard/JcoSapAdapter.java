@@ -44,7 +44,9 @@ final class JcoSapAdapter implements SapAdapter {
     this.clock = clock;
     Properties properties = new Properties();
     properties.putAll(configuration.jcoProperties());
-    JcoReflection.registerProvider(configuration.destinationName(), properties);
+    if (!configuration.usesManagedDestination()) {
+      JcoReflection.registerProvider(configuration.destinationName(), properties);
+    }
     this.destination = JcoReflection.invokeStatic(
         "com.sap.conn.jco.JCoDestinationManager", "getDestination", configuration.destinationName());
   }

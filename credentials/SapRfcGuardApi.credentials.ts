@@ -41,6 +41,18 @@ export class SapRfcGuardApi implements ICredentialType {
 			required: true,
 		},
 		{
+			displayName: 'Token Header',
+			name: 'headerMode',
+			type: 'options',
+			options: [
+				{ name: 'Authorization: Bearer (Private Sidecar)', value: 'bearer' },
+				{ name: 'X-RFC-Guard-Token (SAP BTP)', value: 'xRfcGuardToken' },
+			],
+			default: 'bearer',
+			description:
+				'Use the custom header for SAP BTP, where XSUAA reserves the Authorization bearer header',
+		},
+		{
 			displayName: 'Allowed Operations',
 			name: 'allowedOperations',
 			type: 'string',

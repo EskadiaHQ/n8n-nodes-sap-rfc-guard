@@ -1,0 +1,5 @@
+{
+  "xsappname": "btp-rfc-guard-415",
+  "tenant-mode": "dedicated",
+  "description": "Technical runtime binding for the governed RFC Guard lab sidecar"
+}

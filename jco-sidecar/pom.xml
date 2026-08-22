@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.logali</groupId>
   <artifactId>sap-rfc-guard-sidecar</artifactId>
-  <version>0.4.2</version>
+  <version>0.4.3</version>
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -23,6 +23,12 @@
       <artifactId>junit-jupiter</artifactId>
       <version>${junit.version}</version>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>jakarta.servlet</groupId>
+      <artifactId>jakarta.servlet-api</artifactId>
+      <version>6.1.0</version>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
   <build>
@@ -48,6 +54,22 @@
                   <mainClass>com.logali.rfcguard.Main</mainClass>
                 </transformer>
               </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-war-plugin</artifactId>
+        <version>3.4.0</version>
+        <executions>
+          <execution>
+            <id>btp-war</id>
+            <phase>package</phase>
+            <goals><goal>war</goal></goals>
+            <configuration>
+              <warName>sap-rfc-guard-sidecar</warName>
+              <failOnMissingWebXml>false</failOnMissingWebXml>
             </configuration>
           </execution>
         </executions>

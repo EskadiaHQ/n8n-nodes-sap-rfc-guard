@@ -1,5 +1,6 @@
 package com.logali.rfcguard;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.Map;
 
 record Configuration(
@@ -29,37 +30,48 @@ record Configuration(
 
   static Configuration fromEnvironment() {
     var env = System.getenv();
+    boolean managedDestination = "true".equalsIgnoreCase(
+        env.getOrDefault("SAP_USE_MANAGED_DESTINATION", "false"));
     var properties = new java.util.LinkedHashMap<String, String>();
-    put(properties, "jco.client.ashost", env.get("SAP_ASHOST"));
-    put(properties, "jco.client.sysnr", env.get("SAP_SYSNR"));
-    put(properties, "jco.client.client", env.get("SAP_CLIENT"));
-    put(properties, "jco.client.user", env.get("SAP_USER"));
-    put(properties, "jco.client.passwd", env.get("SAP_PASSWORD"));
-    put(properties, "jco.client.lang", env.getOrDefault("SAP_LANG", "EN"));
-    put(properties, "jco.client.mshost", env.get("SAP_MSHOST"));
-    put(properties, "jco.client.r3name", env.get("SAP_R3NAME"));
-    put(properties, "jco.client.group", env.get("SAP_GROUP"));
-    put(properties, "jco.destination.pool_capacity", env.getOrDefault("SAP_POOL_CAPACITY", "3"));
-    put(properties, "jco.destination.peak_limit", env.getOrDefault("SAP_PEAK_LIMIT", "10"));
-    put(properties, "jco.client.snc_mode", env.get("SAP_SNC_MODE"));
-    put(properties, "jco.client.snc_partnername", env.get("SAP_SNC_PARTNERNAME"));
-    put(properties, "jco.client.snc_qop", env.get("SAP_SNC_QOP"));
-    put(properties, "jco.client.snc_myname", env.get("SAP_SNC_MYNAME"));
-    put(properties, "jco.client.snc_lib", env.get("SAP_SNC_LIB"));
-
-    var token = require(env, "RFC_GUARD_API_TOKEN");
-    var tlsKeystore = require(env, "RFC_GUARD_TLS_KEYSTORE");
-    var tlsPassword = require(env, "RFC_GUARD_TLS_KEYSTORE_PASSWORD");
-    if (token.length() < 32) throw new IllegalArgumentException("RFC_GUARD_API_TOKEN must contain at least 32 characters");
-    if (!properties.containsKey("jco.client.client") || !properties.containsKey("jco.client.user")
-        || !properties.containsKey("jco.client.passwd")) {
-      throw new IllegalArgumentException("SAP_CLIENT, SAP_USER and SAP_PASSWORD are required");
+    if (!managedDestination) {
+      put(properties, "jco.client.ashost", env.get("SAP_ASHOST"));
+      put(properties, "jco.client.sysnr", env.get("SAP_SYSNR"));
+      put(properties, "jco.client.client", env.get("SAP_CLIENT"));
+      put(properties, "jco.client.user", env.get("SAP_USER"));
+      put(properties, "jco.client.passwd", env.get("SAP_PASSWORD"));
+      put(properties, "jco.client.lang", env.getOrDefault("SAP_LANG", "EN"));
+      put(properties, "jco.client.mshost", env.get("SAP_MSHOST"));
+      put(properties, "jco.client.r3name", env.get("SAP_R3NAME"));
+      put(properties, "jco.client.group", env.get("SAP_GROUP"));
+      put(properties, "jco.destination.pool_capacity", env.getOrDefault("SAP_POOL_CAPACITY", "3"));
+      put(properties, "jco.destination.peak_limit", env.getOrDefault("SAP_PEAK_LIMIT", "10"));
+      put(properties, "jco.client.snc_mode", env.get("SAP_SNC_MODE"));
+      put(properties, "jco.client.snc_partnername", env.get("SAP_SNC_PARTNERNAME"));
+      put(properties, "jco.client.snc_qop", env.get("SAP_SNC_QOP"));
+      put(properties, "jco.client.snc_myname", env.get("SAP_SNC_MYNAME"));
+      put(properties, "jco.client.snc_lib", env.get("SAP_SNC_LIB"));
     }
-    boolean direct = properties.containsKey("jco.client.ashost") && properties.containsKey("jco.client.sysnr");
-    boolean balanced = properties.containsKey("jco.client.mshost")
-        && properties.containsKey("jco.client.r3name") && properties.containsKey("jco.client.group");
-    if (!direct && !balanced) {
-      throw new IllegalArgumentException("Configure SAP_ASHOST + SAP_SYSNR or SAP_MSHOST + SAP_R3NAME + SAP_GROUP");
+
+    var token = resolveApiToken(env);
+    var tlsKeystore = env.getOrDefault("RFC_GUARD_TLS_KEYSTORE", "").trim();
+    var tlsPassword = env.getOrDefault("RFC_GUARD_TLS_KEYSTORE_PASSWORD", "");
+    if (token.length() < 32) throw new IllegalArgumentException("RFC_GUARD_API_TOKEN must contain at least 32 characters");
+    if (!tlsKeystore.isBlank() && tlsPassword.isBlank()) {
+      throw new IllegalArgumentException("RFC_GUARD_TLS_KEYSTORE_PASSWORD is required when RFC_GUARD_TLS_KEYSTORE is set");
+    }
+    String destinationName = env.getOrDefault("SAP_DESTINATION_NAME", "SAP_RFC_GUARD").trim();
+    if (destinationName.isBlank()) throw new IllegalArgumentException("SAP_DESTINATION_NAME is required");
+    if (!managedDestination) {
+      if (!properties.containsKey("jco.client.client") || !properties.containsKey("jco.client.user")
+          || !properties.containsKey("jco.client.passwd")) {
+        throw new IllegalArgumentException("SAP_CLIENT, SAP_USER and SAP_PASSWORD are required");
+      }
+      boolean direct = properties.containsKey("jco.client.ashost") && properties.containsKey("jco.client.sysnr");
+      boolean balanced = properties.containsKey("jco.client.mshost")
+          && properties.containsKey("jco.client.r3name") && properties.containsKey("jco.client.group");
+      if (!direct && !balanced) {
+        throw new IllegalArgumentException("Configure SAP_ASHOST + SAP_SYSNR or SAP_MSHOST + SAP_R3NAME + SAP_GROUP");
+      }
     }
 
     String mode = env.getOrDefault("RFC_GUARD_MODE", "read-only").trim();
@@ -89,13 +101,39 @@ record Configuration(
 
     return new Configuration(
         integer(env, "PORT", 8080, 1, 65535), token,
-        env.getOrDefault("SAP_DESTINATION_NAME", "SAP_RFC_GUARD"),
+        destinationName,
         integer(env, "RFC_GUARD_MAX_ROWS", 50, 1, 500),
         integer(env, "RFC_GUARD_INACTIVE_DAYS", 90, 1, 3650),
         integer(env, "RFC_GUARD_REQUEST_TIMEOUT_SECONDS", 30, 1, 300),
         tlsKeystore, tlsPassword, mode, userCreationEnabled, userCreatePrefix,
         userCreateGroup, userCreateMaxValidityDays, newUserInitialPassword,
         Map.copyOf(properties));
+  }
+
+  boolean usesManagedDestination() { return jcoProperties.isEmpty(); }
+
+  static String resolveApiToken(Map<String, String> env) {
+    String direct = env.get("RFC_GUARD_API_TOKEN");
+    if (direct != null && !direct.isBlank()) return direct;
+    String services = env.get("VCAP_SERVICES");
+    if (services != null && !services.isBlank()) {
+      try {
+        var root = new ObjectMapper().readTree(services);
+        var serviceGroups = root.elements();
+        while (serviceGroups.hasNext()) {
+          var group = serviceGroups.next();
+          if (!group.isArray()) continue;
+          for (var binding : group) {
+            var value = binding.path("credentials").path("rfcGuardApiToken");
+            if (value.isTextual() && !value.asText().isBlank()) return value.asText();
+          }
+        }
+      } catch (Exception error) {
+        throw new IllegalArgumentException("VCAP_SERVICES contains invalid JSON", error);
+      }
+    }
+    throw new IllegalArgumentException(
+        "RFC_GUARD_API_TOKEN or a bound rfcGuardApiToken credential is required");
   }
 
   private static void put(Map<String, String> target, String key, String value) {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.8 - 2026-08-22
+
+- Add an opt-in `X-RFC-Guard-Token` credential mode for SAP BTP deployments,
+  where the XSUAA runtime reserves the standard Authorization bearer header.
+- Package the JCo sidecar as both the existing standalone JAR and a Tomcat WAR
+  for the SAP Java buildpack, without bundling proprietary JCo libraries.
+- Resolve the BTP sidecar token from a bound user-provided service so deployment
+  manifests never contain or overwrite the secret.
+
 ## 0.4.7 - 2026-08-22
 
 - Adopt the approved high-resolution Logali Guard family artwork for the RFC node and credential.

@@ -35,6 +35,21 @@ describe('sidecar HTTP contract', () => {
 		assert.equal(captured?.url, 'https://rfc.example.com/v1/health');
 		assert.equal(captured?.method, 'GET');
 		assert.equal(captured?.headers['X-RFC-Guard-Mode'], 'read-only');
+		assert.equal(captured?.headers.Authorization, `Bearer ${credentials.apiToken}`);
+	});
+
+	it('uses the non-XSUAA token header for the SAP BTP sidecar', async () => {
+		let captured: RfcGuardRequestOptions | undefined;
+		await testSidecarConnection(
+			{ ...credentials, headerMode: 'xRfcGuardToken' },
+			async (options) => {
+				captured = options;
+				return { status: 'ok' };
+			},
+			'trace-btp',
+		);
+		assert.equal(captured?.headers['X-RFC-Guard-Token'], credentials.apiToken);
+		assert.equal(captured?.headers.Authorization, undefined);
 	});
 
 	it('calls only the governed operation route and never sends an SAP password', async () => {

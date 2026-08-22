@@ -12,7 +12,7 @@ final class JcoReflection {
   static Object invokeStatic(String className, String method, Object... arguments) {
     try { return invoke(Class.forName(className), null, method, arguments); }
     catch (ClassNotFoundException error) {
-      throw new IllegalStateException("SAP JCo is not installed in /opt/sap/jco", error);
+      throw new IllegalStateException("SAP JCo is not available in the application runtime", error);
     }
   }
 
@@ -37,7 +37,7 @@ final class JcoReflection {
       Class<?> environment = Class.forName("com.sap.conn.jco.ext.Environment");
       environment.getMethod("registerDestinationDataProvider", providerType).invoke(null, proxy);
     } catch (ClassNotFoundException error) {
-      throw new IllegalStateException("SAP JCo is not installed in /opt/sap/jco", error);
+      throw new IllegalStateException("SAP JCo is not available in the application runtime", error);
     } catch (ReflectiveOperationException error) {
       throw unwrap(error);
     }

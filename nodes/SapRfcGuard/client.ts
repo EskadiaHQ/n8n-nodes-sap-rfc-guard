@@ -26,12 +26,18 @@ function requestOptions(
 	body?: Record<string, unknown>,
 ): RfcGuardRequestOptions {
 	const baseUrl = normalizeBaseUrl(credentials.baseUrl, credentials.allowInsecureHttp === true);
+	const tokenHeader: Record<string, string> = {};
+	if (credentials.headerMode === 'xRfcGuardToken') {
+		tokenHeader['X-RFC-Guard-Token'] = credentials.apiToken;
+	} else {
+		tokenHeader.Authorization = `Bearer ${credentials.apiToken}`;
+	}
 	return {
 		method,
 		url: `${baseUrl}${path}`,
 		headers: {
 			Accept: 'application/json',
-			Authorization: `Bearer ${credentials.apiToken}`,
+			...tokenHeader,
 			'Content-Type': 'application/json',
 			'X-Correlation-ID': correlationId,
 			'X-RFC-Guard-Mode': mode,

@@ -1,6 +1,7 @@
 export interface SapRfcGuardCredentials {
 	baseUrl: string;
 	apiToken: string;
+	headerMode?: 'bearer' | 'xRfcGuardToken';
 	sidecarMode?: 'readOnly' | 'userProvisioning';
 	allowedOperations: string;
 	dataFieldPoliciesJson: string;

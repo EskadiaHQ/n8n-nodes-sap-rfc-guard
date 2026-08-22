@@ -49,7 +49,8 @@ final class HttpApi implements AutoCloseable {
 
   private static HttpServer createServer(Configuration configuration) throws IOException {
     if (configuration.tlsKeystorePath() == null || configuration.tlsKeystorePath().isBlank()) {
-      return HttpServer.create(new InetSocketAddress("127.0.0.1", configuration.port()), 0);
+      String bindAddress = System.getenv().getOrDefault("RFC_GUARD_BIND_ADDRESS", "127.0.0.1");
+      return HttpServer.create(new InetSocketAddress(bindAddress, configuration.port()), 0);
     }
     try {
       KeyStore keyStore = KeyStore.getInstance("PKCS12");
@@ -87,7 +88,7 @@ final class HttpApi implements AutoCloseable {
       boolean provisioning = "user-provisioning".equals(configuration.mode());
       response(exchange, 200, Map.of(
           "status", "ok", "service", provisioning
-              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.4.2",
+              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.4.3",
           "backend", backendMap(backend),
           "capabilities", Map.of(
               "readOnly", !provisioning,
@@ -167,7 +168,10 @@ final class HttpApi implements AutoCloseable {
   }
 
   private boolean authorized(HttpExchange exchange) {
-    return ("Bearer " + configuration.apiToken()).equals(exchange.getRequestHeaders().getFirst("Authorization"));
+    return ("Bearer " + configuration.apiToken()).equals(
+        exchange.getRequestHeaders().getFirst("Authorization"))
+        || configuration.apiToken().equals(
+            exchange.getRequestHeaders().getFirst("X-RFC-Guard-Token"));
   }
 
   private <T> T withinTimeout(Callable<T> operation)

@@ -49,7 +49,7 @@ returns `SAP_READ_TIMEOUT` instead of holding the n8n request indefinitely.
 ## Build and test
 
 ```bash
-docker build -t logali-sap-rfc-guard-jco:0.4.2 .
+docker build -t logali-sap-rfc-guard-jco:0.4.3 .
 ```
 
 The image build runs the unit tests. It does not need the proprietary JCo files;
@@ -102,6 +102,27 @@ setting. It is a template, not an instruction to restart n8n immediately:
 first obtain a fresh n8n backup, validate the combined Compose configuration,
 start the sidecar, verify its health, and only then recreate n8n with the CA
 override.
+
+## SAP BTP Cloud Foundry
+
+The same sidecar can run as the included WAR with the SAP Java buildpack's
+Tomcat runtime and its managed JCo destination provider. Set
+`SAP_USE_MANAGED_DESTINATION=true`, bind the
+Destination and Connectivity services, and use the exact RFC destination name
+in `SAP_DESTINATION_NAME`. In this mode SAP credentials and routing properties
+come only from the BTP destination; the application does not register a second
+JCo provider.
+
+Cloud Foundry terminates route TLS before forwarding traffic to the application.
+For this deployment set `RFC_GUARD_BIND_ADDRESS=0.0.0.0` and leave the local
+keystore variables unset. The public route remains protected by TLS and the
+sidecar bearer token. `btp/manifest.yml` contains the non-secret deployment
+configuration. Bind a user-provided service whose credentials contain
+`rfcGuardApiToken`; this prevents a deployment manifest from printing or
+overwriting the bearer secret. The direct `RFC_GUARD_API_TOKEN` variable remains
+available for the private container deployment. SAP JCo is not injected
+into standalone JAR or bring-your-own-container deployments in Cloud Foundry,
+so `btp/manifest.yml` deliberately deploys `sap-rfc-guard-sidecar.war`.
 
 ## Fail-closed readiness check
 

@@ -36,6 +36,22 @@ final class HttpApiTest {
     assertTrue(response.body().contains("\"readOnly\":true"));
   }
 
+  @Test void distinguishesPlatformManagedAndLocallyRegisteredDestinations() {
+    var managed = new Configuration(port, TOKEN, "BTP_DESTINATION", 50, 90, 30,
+        "", "", Map.of());
+    var local = new Configuration(port, TOKEN, "LOCAL_DESTINATION", 50, 90, 30,
+        "", "", Map.of("jco.client.ashost", "sap.internal"));
+    assertTrue(managed.usesManagedDestination());
+    assertTrue(!local.usesManagedDestination());
+  }
+
+  @Test void readsTheApiTokenFromACloudFoundryUserProvidedService() {
+    String services = "{\"user-provided\":[{\"name\":\"rfc-guard-secrets-415\","
+        + "\"credentials\":{\"rfcGuardApiToken\":\"" + TOKEN + "\"}}]}";
+    assertEquals(TOKEN, Configuration.resolveApiToken(Map.of("VCAP_SERVICES", services)));
+    assertEquals(TOKEN, Configuration.resolveApiToken(Map.of("RFC_GUARD_API_TOKEN", TOKEN)));
+  }
+
   @Test void blocksTechnicalFunctionNames() throws Exception {
     var response = send("POST", "/v1/operations/BAPI_USER_GETLIST/execute",
         "{\"operation\":\"BAPI_USER_GETLIST\",\"context\":{\"readOnly\":true}}", TOKEN);
