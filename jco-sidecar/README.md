@@ -66,6 +66,17 @@ synthetic data.
 4. Verify authenticated `/v1/health` from the n8n container.
 5. Create a separate n8n credential; do not overwrite the fixture credential.
 
+When the sidecar has no published host port, run the smoke test through the
+n8n container that already shares its private network and trusts the internal CA:
+
+```bash
+RFC_GUARD_SECRET_FILE=/srv/logali/secrets/sap-rfc-guard.env \
+RFC_GUARD_EXEC_CONTAINER=logali-n8n-restore-n8n-1 \
+scripts/smoke-test.sh
+```
+
+The test prints only the pass/fail result; it does not print tokens or SAP user data.
+
 For user creation, deploy a second container, certificate, API token and n8n
 credential. Set `RFC_GUARD_MODE=user-provisioning`,
 `RFC_GUARD_ENABLE_USER_CREATE=true`, `RFC_GUARD_USER_PREFIX`,

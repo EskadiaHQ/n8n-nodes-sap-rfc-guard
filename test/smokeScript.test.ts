@@ -11,5 +11,6 @@ describe('operated smoke-test contract', () => {
 	it('sends the same read-only mode and client context as the n8n node', () => {
 		assert.match(smokeScript, /X-RFC-Guard-Mode: read-only/);
 		assert.match(smokeScript, /"client":"n8n-sap-rfc-guard","readOnly":true/);
+		assert.match(smokeScript, /RFC_GUARD_EXEC_CONTAINER/);
 	});
 });
