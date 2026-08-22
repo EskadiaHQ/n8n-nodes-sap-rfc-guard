@@ -5,3 +5,4 @@ node_modules/
 .DS_Store
 jco-sidecar/docs/READINESS-REPORT-*.md
 jco-sidecar/n8n-ca.compose.override.yml
+jco-sidecar/target/

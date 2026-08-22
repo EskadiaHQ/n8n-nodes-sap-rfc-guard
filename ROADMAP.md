@@ -27,8 +27,10 @@ can be reviewed before a production SAP identity is connected.
 - Validate every enabled standard BAPI and its projected structures in each target release.
 - Replace the temporary test account with a least-privilege service account.
 - Preserve complete SU01 and STAUTHTRACE evidence for positive and negative cases.
-- Verify direct and load-balanced destination modes.
-- Complete a positive purchase-order read with an approved document ID.
+- Preserve the verified direct-destination acceptance for purchase order `4500000009`
+  and sales orders `0000000002`–`0000000004` as repeatable regression cases.
+- Verify the optional message-server/load-balanced destination mode before claiming
+  that deployment topology as supported.
 
 ## Candidate `0.5.x` work
 

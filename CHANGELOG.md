@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.4 - 2026-08-22
+
+- Replace the legacy embedded RFC artwork with the actual HANA Guard family frame and a large bidirectional connection symbol.
+- Repair the operated smoke test so it sends the required read-only mode header and fixed n8n client context.
+- Mark the verified purchase-order and sales-order acceptance cases complete while keeping message-server/load-balanced mode pending.
+
 ## 0.4.3 - 2026-08-22
 
 - Align the SAP RFC Guard node icon with the Logali HANA Guard visual family.

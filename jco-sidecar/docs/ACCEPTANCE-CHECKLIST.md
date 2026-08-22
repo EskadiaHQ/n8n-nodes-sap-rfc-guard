@@ -22,5 +22,5 @@
 - [x] One isolated, approval-gated Communication-user creation completed and was verified.
 - [ ] Demonstration user is blocked or removed after testing.
 - [ ] Test passwords and tokens are rotated.
-- [ ] Positive purchase-order and sales-order reads are executed with approved document IDs.
+- [x] Positive purchase-order `4500000009` and sales-order `0000000002`–`0000000004` reads are executed with approved document IDs.
 - [ ] Message-server/load-balanced destination mode is verified.
