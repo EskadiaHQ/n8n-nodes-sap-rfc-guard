@@ -74,8 +74,8 @@ export class SapRfcGuard implements INodeType {
 		displayName: 'Logali SAP RFC Guard',
 		name: 'sapRfcGuard',
 		icon: {
-			light: 'file:sapRfcGuard.svg',
-			dark: 'file:sapRfcGuard.dark.svg',
+			light: 'file:sapRfcGuard-v045.svg',
+			dark: 'file:sapRfcGuard-v045.dark.svg',
 		},
 		group: ['input'],
 		version: 1,

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.5 - 2026-08-22
+
+- Reference the corrected RFC artwork through a versioned icon filename so n8n and browser caches cannot keep serving the legacy asset URL.
+- Preserve the `0.4.4` smoke-test, acceptance-checklist and roadmap corrections unchanged.
+
 ## 0.4.4 - 2026-08-22
 
 - Replace the legacy embedded RFC artwork with the actual HANA Guard family frame and a large bidirectional connection symbol.
