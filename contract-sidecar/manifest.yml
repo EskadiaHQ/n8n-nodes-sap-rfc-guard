@@ -1,0 +1,14 @@
+---
+applications:
+  - name: logali-415-rfc-contract
+    path: .
+    memory: 128M
+    disk_quota: 256M
+    instances: 1
+    buildpacks:
+      - nodejs_buildpack
+    command: npm start
+    health-check-type: process
+    env:
+      NODE_ENV: production
+      SAP_CLIENT: "100"
