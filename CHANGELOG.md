@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.6 - 2026-08-22
+
+- Restore the exact HANA Guard family artwork as the RFC node base instead of the visually unrelated replacement frame.
+- Replace the dense multi-arrow mark with a larger two-endpoint connection badge that remains legible at n8n canvas size.
+- Use a new versioned icon filename so existing n8n and browser caches cannot retain the `0.4.5` artwork.
+
 ## 0.4.5 - 2026-08-22
 
 - Reference the corrected RFC artwork through a versioned icon filename so n8n and browser caches cannot keep serving the legacy asset URL.
