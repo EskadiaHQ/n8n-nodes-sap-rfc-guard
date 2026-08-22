@@ -58,7 +58,7 @@ public final class BtpRfcGuardServlet extends HttpServlet {
       adapter.ping();
       var backend = adapter.backend();
       response(response, 200, Map.of(
-          "status", "ok", "service", "sap-rfc-guard-jco", "version", "0.4.3",
+          "status", "ok", "service", "sap-rfc-guard-jco", "version", "0.4.4",
           "backend", backendMap(backend),
           "capabilities", Map.of("readOnly", true, "writeEnabled", false,
               "operations", GuardService.READ_OPERATIONS),

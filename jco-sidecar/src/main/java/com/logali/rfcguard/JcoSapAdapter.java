@@ -812,7 +812,14 @@ final class JcoSapAdapter implements SapAdapter {
     Object requested = parameters.get("client");
     if (requested == null) return;
     String configured = configuration.jcoProperties().getOrDefault("jco.client.client", "");
-    if (!requested.toString().equals(configured)) throw new IllegalArgumentException("CLIENT_MISMATCH");
+    if (configured.isBlank() && configuration.usesManagedDestination()) {
+      configured = backend().client();
+    }
+    assertClientMatches(requested.toString(), configured);
+  }
+
+  static void assertClientMatches(String requested, String configured) {
+    if (!requested.equals(configured)) throw new IllegalArgumentException("CLIENT_MISMATCH");
   }
 
   private static int boundedInteger(

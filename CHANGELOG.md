@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.9 - 2026-08-23
+
+- Validate the requested SAP client against the client resolved from a managed
+  BTP Destination instead of the empty local JCo property map.
+- Add regression coverage for managed-destination client matching and keep the
+  mismatch guard active for every other client.
+
 ## 0.4.8 - 2026-08-22
 
 - Add an opt-in `X-RFC-Guard-Token` credential mode for SAP BTP deployments,
