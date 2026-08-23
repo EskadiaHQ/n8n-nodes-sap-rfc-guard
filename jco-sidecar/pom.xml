@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.logali</groupId>
   <artifactId>sap-rfc-guard-sidecar</artifactId>
-  <version>0.4.4</version>
+  <version>0.4.5</version>
   <properties>
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
