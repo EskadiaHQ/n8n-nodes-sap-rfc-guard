@@ -238,11 +238,26 @@ export class SapRfcGuard implements INodeType {
 				type: 'string',
 				default: '',
 				placeholder: '1000',
-				description: 'Required for ATP; optional for material details',
+				description: 'Optional plant context for material details',
 				displayOptions: {
 					show: {
 						resource: ['material'],
-						operation: ['getDetails', 'checkAvailability'],
+						operation: ['getDetails'],
+					},
+				},
+			},
+			{
+				displayName: 'Plant',
+				name: 'plant',
+				type: 'string',
+				default: '',
+				placeholder: '1000',
+				description: 'Plant where SAP checks the requested material availability',
+				required: true,
+				displayOptions: {
+					show: {
+						resource: ['material'],
+						operation: ['checkAvailability'],
 					},
 				},
 			},

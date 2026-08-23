@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.10 - 2026-08-23
+
+- Mark Plant as required in the typed material availability UI so incomplete
+  ATP checks fail in the editor instead of reaching the RFC sidecar.
+- Keep Plant optional for material-detail reads and add regression coverage for
+  both visual contracts.
+
 ## 0.4.9 - 2026-08-23
 
 - Validate the requested SAP client against the client resolved from a managed
