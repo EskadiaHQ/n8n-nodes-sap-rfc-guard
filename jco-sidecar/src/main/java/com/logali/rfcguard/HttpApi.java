@@ -88,7 +88,7 @@ final class HttpApi implements AutoCloseable {
       boolean provisioning = "user-provisioning".equals(configuration.mode());
       response(exchange, 200, Map.of(
           "status", "ok", "service", provisioning
-              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.4.3",
+              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.4.5",
           "backend", backendMap(backend),
           "capabilities", Map.of(
               "readOnly", !provisioning,

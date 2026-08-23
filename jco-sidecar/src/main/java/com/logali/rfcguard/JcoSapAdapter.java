@@ -240,11 +240,14 @@ final class JcoSapAdapter implements SapAdapter {
       row.put("storageLocation", string(parameters.get("storageLocation")).toUpperCase());
       row.put("unit", string(parameters.get("unit")).toUpperCase());
       row.put("requestedDate", dateValue(confirmations, "REQ_DATE"));
-      row.put("requestedQuantity", optionalString(confirmations, "REQ_QTY"));
+      String requestedQuantity = optionalString(confirmations, "REQ_QTY");
+      String confirmedQuantity = optionalString(confirmations, "COM_QTY");
+      row.put("requestedQuantity", requestedQuantity);
       row.put("confirmedDate", dateValue(confirmations, "COM_DATE"));
-      row.put("confirmedQuantity", optionalString(confirmations, "COM_QTY"));
+      row.put("confirmedQuantity", confirmedQuantity);
       row.put("availableQuantityAtPlant", availableAtPlant);
-      row.put("availabilityStatus", availabilityStatus(dialogFlag));
+      row.put("availabilityStatus",
+          availabilityStatus(dialogFlag, requestedQuantity, confirmedQuantity));
       row.put("endLeadTimeDate", endLeadTime);
       output.add(row);
     }
@@ -259,7 +262,8 @@ final class JcoSapAdapter implements SapAdapter {
       row.put("confirmedDate", "");
       row.put("confirmedQuantity", "0");
       row.put("availableQuantityAtPlant", availableAtPlant);
-      row.put("availabilityStatus", availabilityStatus(dialogFlag));
+      row.put("availabilityStatus",
+          availabilityStatus(dialogFlag, parameters.get("requestedQuantity"), "0"));
       row.put("endLeadTimeDate", endLeadTime);
       output.add(row);
     }
@@ -890,12 +894,15 @@ final class JcoSapAdapter implements SapAdapter {
   private static boolean booleanValue(Object raw) {
     return raw instanceof Boolean value ? value : "true".equalsIgnoreCase(string(raw));
   }
-  private static String availabilityStatus(String dialogFlag) {
-    return switch (dialogFlag) {
-      case "" -> "FullyAvailable";
-      case "N" -> "NotAvailabilityRelevant";
-      default -> "PartiallyOrNotAvailable";
-    };
+  static String availabilityStatus(
+      String dialogFlag, Object requestedQuantity, Object confirmedQuantity) {
+    if ("N".equals(dialogFlag)) return "NotAvailabilityRelevant";
+    BigDecimal requested = nonNegative(decimal(requestedQuantity));
+    BigDecimal confirmed = nonNegative(decimal(confirmedQuantity));
+    if (requested.signum() == 0) return "NoQuantityRequested";
+    if (confirmed.compareTo(requested) >= 0) return "FullyAvailable";
+    if (confirmed.signum() == 0) return "NotAvailable";
+    return "PartiallyAvailable";
   }
   private static String normalizedReference(String value) {
     return value.toUpperCase().replaceAll("[^A-Z0-9]", "");

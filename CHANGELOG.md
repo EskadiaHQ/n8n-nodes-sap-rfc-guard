@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.11 - 2026-08-23
+
+- Derive ATP availability from requested and confirmed quantities instead of
+  treating an empty SAP dialog flag as proof of full availability.
+- Return distinct `NotAvailable`, `PartiallyAvailable`, `FullyAvailable`, and
+  `NotAvailabilityRelevant` states with Java regression coverage.
+- Align standalone and BTP sidecar health evidence on JCo sidecar `0.4.5`.
+
 ## 0.4.10 - 2026-08-23
 
 - Mark Plant as required in the typed material availability UI so incomplete
