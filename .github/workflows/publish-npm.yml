@@ -31,6 +31,7 @@ jobs:
       # the workflow does not inherit the older npm bundled with Node 22.
       - run: npm install --global npm@11.15.0
       - run: npm ci
+      - run: npm run audit:prod
       - run: npm test
       - run: npm run lint
       - run: npm run build
