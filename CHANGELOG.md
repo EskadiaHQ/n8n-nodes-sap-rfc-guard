@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.13 - 2026-08-23
+
+- Fail closed when a read-only or user-provisioning sidecar reports a degraded,
+  missing, or otherwise unhealthy status during credential checks and runtime
+  connection tests.
+- Require RFC sidecar API tokens to contain at least 32 bytes, matching the IDoc
+  Guard security baseline. Existing shorter tokens must be rotated before this
+  version is installed.
+- Add regression coverage for unhealthy sidecars and weak API tokens.
+
 ## 0.4.12 - 2026-08-23
 
 - Declare the n8n workflow runtime explicitly as a development dependency so

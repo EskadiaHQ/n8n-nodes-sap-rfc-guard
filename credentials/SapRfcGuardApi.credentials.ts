@@ -38,6 +38,7 @@ export class SapRfcGuardApi implements ICredentialType {
 			type: 'string',
 			typeOptions: { password: true },
 			default: '',
+			description: 'Random sidecar token containing at least 32 bytes',
 			required: true,
 		},
 		{

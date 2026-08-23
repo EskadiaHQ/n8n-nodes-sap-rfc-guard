@@ -7,6 +7,9 @@ SAP RFC Guard does not accept technical function-module names from workflows. Ne
 operations belong in the sidecar allowlist and require input validation, SAP authorization,
 response sanitization, tests, and an explicit read/write classification.
 
+Generate a random API token containing at least 32 bytes and rotate it through a
+coordinated sidecar/n8n credential change.
+
 Use GitHub's private security-advisory form for vulnerabilities. Do not attach
 real workflow exports, traces, environment files or SAP user records to a
 public issue.

@@ -16,7 +16,7 @@ import {
 
 const credentials = {
 	baseUrl: 'https://rfc.example.com',
-	apiToken: 'not-a-real-secret',
+	apiToken: 'test-'.repeat(8),
 	allowedOperations: 'listSu01Users, getSu01UserDetail',
 	dataFieldPoliciesJson:
 		'{"listSu01Users":["username","accountStatus"],"getSu01UserDetail":["username","email"]}',
@@ -94,6 +94,14 @@ describe('data field policies', () => {
 });
 
 describe('connection and input validation', () => {
+	it('requires an API token with at least 32 bytes', () => {
+		assert.doesNotThrow(() => validateGovernanceConfiguration(credentials));
+		assert.throws(
+			() => validateGovernanceConfiguration({ ...credentials, apiToken: 'too-short' }),
+			/at least 32 bytes/,
+		);
+	});
+
 	it('requires HTTPS unless local HTTP was explicitly enabled', () => {
 		assert.equal(normalizeBaseUrl('https://rfc.example.com/'), 'https://rfc.example.com');
 		assert.throws(() => normalizeBaseUrl('http://rfc.example.com'), /must use HTTPS/);

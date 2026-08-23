@@ -120,6 +120,9 @@ function assertIntegerRange(value: unknown, label: string, minimum: number, maxi
 
 export function validateGovernanceConfiguration(credentials: SapRfcGuardCredentials): void {
 	normalizeBaseUrl(credentials.baseUrl, credentials.allowInsecureHttp === true);
+	if (Buffer.byteLength(String(credentials.apiToken ?? ''), 'utf8') < 32) {
+		throw new OperationalError('API Token must contain at least 32 bytes.');
+	}
 	const allowed = parseAllowedOperations(credentials.allowedOperations);
 	const policies = parseDataFieldPolicies(credentials.dataFieldPoliciesJson);
 	for (const operation of allowed) allowedDataFieldsForOperation(operation, policies);
