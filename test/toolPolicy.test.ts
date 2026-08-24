@@ -7,7 +7,7 @@ import type { SapRfcGuardCredentials } from '../nodes/SapRfcGuard/types';
 
 const credentials = {
 	baseUrl: 'https://rfc.example.com',
-	apiToken: 'not-a-real-secret',
+	apiToken: 'test-'.repeat(8),
 	allowedOperations: 'listSu01Users',
 	dataFieldPoliciesJson: '{"listSu01Users":["username"]}',
 	connectionTimeout: 15000,

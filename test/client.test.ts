@@ -10,7 +10,7 @@ import type { RfcGuardRequestOptions, SapRfcGuardCredentials } from '../nodes/Sa
 
 const credentials: SapRfcGuardCredentials = {
 	baseUrl: 'https://rfc.example.com/',
-	apiToken: 'not-a-real-secret',
+	apiToken: 'test-'.repeat(8),
 	allowedOperations: 'listSu01Users',
 	dataFieldPoliciesJson: '{"listSu01Users":["username"]}',
 	rejectUnauthorized: true,

@@ -35,6 +35,14 @@ describe('sidecar response governance', () => {
 			() => sanitizeHealthResponse({ status: 'ok', capabilities: { readOnly: false } }),
 			/does not advertise read-only/,
 		);
+		assert.throws(
+			() =>
+				sanitizeHealthResponse({
+					status: 'degraded',
+					capabilities: { readOnly: true, operations: ['listSu01Users'] },
+				}),
+			/did not report a healthy status/,
+		);
 	});
 
 	it('projects fields, enforces the row limit, and adds safe metadata', () => {
@@ -196,6 +204,18 @@ describe('sidecar response governance', () => {
 		assert.throws(
 			() => sanitizeProvisioningHealthResponse({ status: 'ok', capabilities: { readOnly: true } }),
 			/does not advertise user-provisioning/,
+		);
+		assert.throws(
+			() =>
+				sanitizeProvisioningHealthResponse({
+					status: 'degraded',
+					capabilities: {
+						readOnly: false,
+						writeEnabled: true,
+						operations: ['createSu01CommunicationUser'],
+					},
+				}),
+			/did not report a healthy status/,
 		);
 	});
 });
