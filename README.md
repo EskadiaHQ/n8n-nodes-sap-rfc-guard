@@ -98,15 +98,18 @@ XSUAA reserves the standard bearer header before the request reaches the
 application, while the custom header remains protected by the same HTTPS route
 and secret comparison.
 
-## Install the early-access node
+## Install the stable node
 
 ```bash
-npm install n8n-nodes-sap-rfc-guard@next
+npm install n8n-nodes-sap-rfc-guard
 ```
 
 Self-hosted n8n must still be configured to load community packages. Installing
 the npm package does not install SAP JCo, create SAP credentials or start the
 real sidecar.
+
+The validation and publication evidence for the current security hardening is
+recorded in [`docs/RELEASE-VERIFICATION-2026-08-24.md`](docs/RELEASE-VERIFICATION-2026-08-24.md).
 
 ## Credential configuration
 
