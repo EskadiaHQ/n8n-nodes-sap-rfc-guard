@@ -67,11 +67,11 @@
 		]
 	},
 	"devDependencies": {
-		"@n8n/node-cli": "0.44.5",
+		"@n8n/node-cli": "0.45.3",
 		"eslint": "9.32.0",
 		"n8n-workflow": "2.14.1",
 		"prettier": "3.6.2",
-		"release-it": "20.2.1",
+		"release-it": "21.0.2",
 		"tsx": "4.20.6",
 		"typescript": "5.9.2"
 	},
