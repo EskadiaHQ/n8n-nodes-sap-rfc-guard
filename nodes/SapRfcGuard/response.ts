@@ -109,6 +109,35 @@ export function sanitizeProvisioningHealthResponse(value: unknown): Record<strin
 	};
 }
 
+export function sanitizeBusinessHealthResponse(value: unknown): Record<string, unknown> {
+	const response = asRecord(value, 'Sidecar health response');
+	const capabilities = asRecord(response.capabilities, 'Sidecar health capabilities');
+	if (capabilities.readOnly !== false || capabilities.writeEnabled !== true) {
+		throw new OperationalError('The configured sidecar does not advertise business-operation capability.');
+	}
+	const operations = Array.isArray(capabilities.operations)
+		? capabilities.operations.map(String).filter((operation) => /^[a-z][a-zA-Z0-9.-]{0,63}$/.test(operation))
+		: [];
+	if (
+		!operations.includes('createIncomingInvoice') &&
+		!operations.includes('parkIncomingInvoice') &&
+		!operations.includes('createGoodsReceipt')
+	) {
+		throw new OperationalError('The sidecar does not advertise a governed business-write alias.');
+	}
+	const backend = safeBackend(response.backend);
+	return {
+		connected: response.status === 'ok' || response.status === 'healthy',
+		status: String(response.status ?? 'unknown'),
+		service: String(response.service ?? 'sap-rfc-sidecar'),
+		version: String(response.version ?? 'unknown'),
+		readOnly: false,
+		writeEnabled: true,
+		operations,
+		...(backend ? { backend } : {}),
+	};
+}
+
 export function sanitizeExecutionResponse(
 	value: unknown,
 	operation: string,

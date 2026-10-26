@@ -1,7 +1,7 @@
 # Logali SAP RFC Guard
 
-Security-first n8n community node for governed SAP RFC/BAPI reads and isolated
-Communication-user provisioning.
+Security-first n8n community node for governed SAP RFC/BAPI reads, isolated
+Communication-user provisioning and explicitly confirmed test-system business writes.
 
 > **Early access (`0.4.x`)**: the n8n governance contract and synthetic examples
 > are testable now. Real SAP execution additionally requires the operated JCo
@@ -19,6 +19,10 @@ n8n workflow -> Logali SAP RFC Guard -> HTTPS sidecar -> RFC/SNC -> SAP R/3, ECC
 
 - Read operations remain on a dedicated sidecar that must attest `readOnly: true`.
 - User creation requires a different sidecar, token and credential that attest `writeEnabled: true`.
+- Incoming-invoice creation and parking use a dedicated business-operations credential, explicit
+  opt-in and an exact confirmation tied to the invoice reference.
+- Purchase-order goods receipts use a separate credential opt-in, an exact
+  `POST GOODS RECEIPT <reference>` confirmation and the current open delivery quantity.
 - Deny by default. Credentials contain an exact business-operation allowlist.
 - Technical names such as `BAPI_*`, `RFC_*`, `Z_*`, and `Y_*` are rejected in workflows.
 - Every operation has a required response-field allowlist.
@@ -26,7 +30,9 @@ n8n workflow -> Logali SAP RFC Guard -> HTTPS sidecar -> RFC/SNC -> SAP R/3, ECC
 - AI Tool use requires a separate credential opt-in and keeps the same operation and field policies.
 - SAP usernames and passwords never enter n8n credentials or workflow JSON.
 - HTTPS is mandatory except for an explicitly enabled isolated local contract test.
-- The only write alias creates one prefix-restricted Communication user with short validity, no roles and no profiles.
+- Write aliases are narrow and typed: one prefix-restricted Communication user, one PO-based
+  incoming invoice or one PO-based movement-101 goods receipt. None accepts a technical RFC name
+  or an arbitrary payload.
 - The initial password remains in the provisioning sidecar secret and is never sent to or returned by n8n.
 
 ## Sidecar contract
@@ -43,7 +49,7 @@ X-RFC-Guard-Mode: read-only
 {
   "status": "ok",
   "service": "sap-rfc-guard-jco",
-  "version": "0.4.4",
+  "version": "0.4.7",
   "backend": { "systemId": "S4D", "client": "100" },
   "capabilities": { "readOnly": true, "operations": ["listSu01Users"] }
 }
@@ -156,6 +162,14 @@ listSu01Users, getSu01UserDetail
 - **Purchase Order / Get Details** maps to `BAPI_PO_GETDETAIL1`, including schedules, confirmations and receipt/invoice totals.
 - **Sales Order / Get Status** maps to `BAPI_SALESORDER_GETSTATUS`.
 - **Incoming Invoice / Get Many** and **Get Details** map to the standard MM-IV list/detail BAPIs.
+- **Incoming Invoice / Create** maps a single validated PO item to
+  `BAPI_INCOMINGINVOICE_CREATE`, commits only after SAP accepts it and rereads the posted document.
+- **Incoming Invoice / Park** maps a single validated PO item to
+  `BAPI_INCOMINGINVOICE_PARK`, commits and rereads the preliminary document without presenting it
+  as posted.
+- **Goods Movement / Create Purchase-Order Goods Receipt** maps one validated PO item to
+  `BAPI_GOODSMVT_CREATE`, fixes `GM_CODE 01` and movement 101, commits only after SAP accepts it and
+  rereads the material document.
 - **Incoming Invoice / Detect Potential Duplicates** compares vendor, normalized reference, amount, currency and a bounded date window.
 - **Open Item / Get Vendor Open Items** and **Get Customer Open Items** map to the standard AP/AR open-item BAPIs.
 - **Open Item / Summarize Overdue Items** calculates due dates and currency-grouped ageing buckets in the sidecar.
@@ -220,7 +234,9 @@ sales, invoice and open-item examples. Document workflows contain placeholders
 and fail input validation until an approved ID from the target client is supplied.
 The AI Agent example uses n8n's generated `sapRfcGuardTool` variant, requires an
 AI-enabled read-only credential and remains limited by the same operation and
-field allowlists as the normal workflow node.
+field allowlists as the normal workflow node. The customer order self-service example keeps the
+SAP read outside a public agent: a trusted Teams/WhatsApp adapter must authenticate the requester
+and allowlist the sales document before RFC Guard runs.
 
 ## Real SAP JCo sidecar
 
@@ -235,6 +251,12 @@ Provisioning is also separate from reporting: operate a second container with
 `RFC_GUARD_MODE=user-provisioning`, its own certificate/API token, a fixed
 username prefix and user group, a short maximum validity, and a server-held
 initial password. Never point a read-only credential at that endpoint.
+
+For a controlled non-production posting flow, operate a sidecar with
+`RFC_GUARD_MODE=business-operations` and a dedicated n8n credential. It keeps the approved read
+aliases available, permits only explicitly allowlisted invoice or goods-receipt writes, requires
+the operation-specific exact confirmation, commits through SAP and returns read-back evidence. Do not use this
+mode against production without a separate authorization and release process.
 
 ## Development
 

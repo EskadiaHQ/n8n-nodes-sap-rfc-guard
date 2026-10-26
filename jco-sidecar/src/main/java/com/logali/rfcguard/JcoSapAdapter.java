@@ -29,6 +29,10 @@ final class JcoSapAdapter implements SapAdapter {
   private static final String SALES_ORDER_STATUS_BAPI = "BAPI_SALESORDER_GETSTATUS";
   private static final String INCOMING_INVOICE_LIST_BAPI = "BAPI_INCOMINGINVOICE_GETLIST";
   private static final String INCOMING_INVOICE_DETAIL_BAPI = "BAPI_INCOMINGINVOICE_GETDETAIL";
+  private static final String INCOMING_INVOICE_CREATE_BAPI = "BAPI_INCOMINGINVOICE_CREATE";
+  private static final String GOODS_MOVEMENT_CREATE_BAPI = "BAPI_GOODSMVT_CREATE";
+  private static final String GOODS_MOVEMENT_DETAIL_BAPI = "BAPI_GOODSMVT_GETDETAIL";
+  private static final String INCOMING_INVOICE_PARK_BAPI = "BAPI_INCOMINGINVOICE_PARK";
   private static final String VENDOR_OPEN_ITEMS_BAPI = "BAPI_AP_ACC_GETOPENITEMS";
   private static final String CUSTOMER_OPEN_ITEMS_BAPI = "BAPI_AR_ACC_GETOPENITEMS";
   private static final String VENDOR_DETAIL_BAPI = "BAPI_VENDOR_GETDETAIL";
@@ -539,7 +543,8 @@ final class JcoSapAdapter implements SapAdapter {
           "material", "MATERIAL", "materialLong", "MATERIAL_LONG", "plant", "PLANT",
           "storageLocation", "STGE_LOC", "materialGroup", "MATL_GROUP", "quantity", "QUANTITY",
           "orderUnit", "PO_UNIT", "orderUnitIso", "PO_UNIT_ISO", "netPrice", "NET_PRICE",
-          "priceUnit", "PRICE_UNIT", "taxCode", "TAX_CODE", "deliveryCompleted", "NO_MORE_GR",
+          "priceUnit", "PRICE_UNIT", "taxCode", "TAX_CODE", "infoRecord", "INFO_REC",
+          "confirmationControlKey", "CONF_CTRL", "deliveryCompleted", "NO_MORE_GR",
           "finalInvoice", "FINAL_INV"));
       PurchaseOrderFacts facts = factsByItem.getOrDefault(optionalString(items, "PO_ITEM"),
           new PurchaseOrderFacts());
@@ -694,6 +699,7 @@ final class JcoSapAdapter implements SapAdapter {
     JcoReflection.invoke(address, "setValue", "LASTNAME", lastName);
     if (!email.isBlank()) JcoReflection.invoke(address, "setValue", "E_MAIL", email);
     JcoReflection.invoke(address, "setValue", "LANGU", "E");
+    beginContext();
     try {
       execute(function);
       assertNoBapiErrors(function, "SAP rejected the governed user creation");
@@ -701,6 +707,8 @@ final class JcoSapAdapter implements SapAdapter {
     } catch (RuntimeException error) {
       rollback();
       throw error;
+    } finally {
+      endContext();
     }
 
     UserRecord verified = readDetail(username, configuration.inactiveDays());
@@ -791,6 +799,211 @@ final class JcoSapAdapter implements SapAdapter {
     throw new IllegalStateException("SAP user existence check returned an unexpected message");
   }
 
+  @Override public Map<String, Object> createIncomingInvoice(Map<String, Object> parameters) {
+    return persistIncomingInvoice(parameters, false);
+  }
+
+  @Override public Map<String, Object> parkIncomingInvoice(Map<String, Object> parameters) {
+    return persistIncomingInvoice(parameters, true);
+  }
+
+  private Map<String, Object> persistIncomingInvoice(
+      Map<String, Object> parameters, boolean park) {
+    assertConfiguredClient(parameters);
+    if (!"business-operations".equals(configuration.mode())) {
+      throw new IllegalArgumentException(park ? "INVOICE_PARKING_DISABLED" : "INVOICE_CREATION_DISABLED");
+    }
+    String documentDate = string(parameters.get("documentDate"));
+    String reference = string(parameters.get("reference"));
+    String companyCode = string(parameters.get("companyCode")).toUpperCase();
+    List<Map<String, Object>> existing = incomingInvoices(Map.of(
+        "dateFrom", documentDate, "dateTo", documentDate, "reference", reference,
+        "companyCode", companyCode, "maxRows", configuration.maxRows()), true);
+    if (!existing.isEmpty()) {
+      Map<String, Object> candidate = existing.getFirst();
+      var result = new LinkedHashMap<String, Object>(candidate);
+      result.put("created", false);
+      result.put("existing", true);
+      result.put("parked", park);
+      result.put("posted", !park);
+      result.put("verified", true);
+      return result;
+    }
+
+    Object function = function(park ? INCOMING_INVOICE_PARK_BAPI : INCOMING_INVOICE_CREATE_BAPI);
+    Object imports = JcoReflection.invoke(function, "getImportParameterList");
+    Object header = JcoReflection.invoke(imports, "getStructure", "HEADERDATA");
+    JcoReflection.invoke(header, "setValue", "INVOICE_IND", "X");
+    JcoReflection.invoke(header, "setValue", "DOC_DATE", sapDate(documentDate));
+    JcoReflection.invoke(header, "setValue", "PSTNG_DATE", sapDate(parameters.get("postingDate")));
+    JcoReflection.invoke(header, "setValue", "REF_DOC_NO", reference);
+    JcoReflection.invoke(header, "setValue", "COMP_CODE", companyCode);
+    JcoReflection.invoke(header, "setValue", "CURRENCY", string(parameters.get("currency")).toUpperCase());
+    JcoReflection.invoke(header, "setValue", "GROSS_AMOUNT", string(parameters.get("grossAmount")));
+
+    Object item = table(function, "ITEMDATA");
+    JcoReflection.invoke(item, "appendRow");
+    JcoReflection.invoke(item, "setValue", "INVOICE_DOC_ITEM", "000001");
+    JcoReflection.invoke(item, "setValue", "PO_NUMBER", documentNumber(parameters.get("purchaseOrder")));
+    JcoReflection.invoke(item, "setValue", "PO_ITEM", padLeft(parameters.get("purchaseOrderItem"), 5));
+    JcoReflection.invoke(item, "setValue", "ITEM_AMOUNT", string(parameters.get("itemAmount")));
+    JcoReflection.invoke(item, "setValue", "QUANTITY", string(parameters.get("quantity")));
+    JcoReflection.invoke(item, "setValue", "PO_UNIT", string(parameters.get("unit")).toUpperCase());
+    setIfPresent(item, "TAX_CODE", parameters.get("taxCode"));
+    setIfPresent(item, "REF_DOC", parameters.get("referenceDocument"));
+    setIfPresent(item, "REF_DOC_YEAR", parameters.get("referenceDocumentYear"));
+    if (parameters.containsKey("referenceDocumentItem")) {
+      JcoReflection.invoke(item, "setValue", "REF_DOC_IT",
+          padLeft(parameters.get("referenceDocumentItem"), 4));
+    }
+
+    beginContext();
+    try {
+      execute(function);
+      assertNoBapiErrors(function, park
+          ? "SAP rejected the governed incoming-invoice parking"
+          : "SAP rejected the governed incoming-invoice creation");
+      Object exports = JcoReflection.invoke(function, "getExportParameterList");
+      String invoiceDocument = JcoReflection.string(exports, "INVOICEDOCNUMBER");
+      String fiscalYear = JcoReflection.string(exports, "FISCALYEAR");
+      if (invoiceDocument.isBlank() || fiscalYear.isBlank()) {
+        throw new IllegalStateException("SAP did not return the created invoice identity");
+      }
+      commit();
+      List<Map<String, Object>> verifiedRows = incomingInvoiceDetail(Map.of(
+          "invoiceDocument", invoiceDocument, "fiscalYear", fiscalYear));
+      var result = new LinkedHashMap<String, Object>(verifiedRows.getFirst());
+      result.put("created", true);
+      result.put("existing", false);
+      result.put("parked", park);
+      result.put("posted", !park);
+      result.put("verified", invoiceDocument.equals(string(result.get("invoiceDocument"))));
+      return result;
+    } catch (RuntimeException error) {
+      rollback();
+      throw error;
+    } finally {
+      endContext();
+    }
+  }
+
+  @Override public Map<String, Object> createGoodsReceipt(Map<String, Object> parameters) {
+    assertConfiguredClient(parameters);
+    if (!"business-operations".equals(configuration.mode())) {
+      throw new IllegalArgumentException("GOODS_RECEIPT_CREATION_DISABLED");
+    }
+    String purchaseOrder = documentNumber(parameters.get("purchaseOrder"));
+    String purchaseOrderItem = padLeft(parameters.get("purchaseOrderItem"), 5);
+    BigDecimal quantity = decimal(parameters.get("quantity"));
+    Map<String, Object> poItem = purchaseOrderDetail(Map.of("purchaseOrder", purchaseOrder)).stream()
+        .filter(row -> purchaseOrderItem.equals(padLeft(row.get("itemNumber"), 5)))
+        .findFirst()
+        .orElseThrow(() -> new IllegalArgumentException("PURCHASE_ORDER_ITEM_NOT_FOUND"));
+    if (!string(poItem.get("deletionIndicator")).isBlank()) {
+      throw new IllegalArgumentException("PURCHASE_ORDER_ITEM_DELETED");
+    }
+    if (!string(parameters.get("plant")).equalsIgnoreCase(string(poItem.get("plant")))) {
+      throw new IllegalArgumentException("PURCHASE_ORDER_PLANT_MISMATCH");
+    }
+    String requestedStorageLocation = string(parameters.get("storageLocation"));
+    String orderStorageLocation = string(poItem.get("storageLocation"));
+    if (!requestedStorageLocation.isBlank() && !orderStorageLocation.isBlank()
+        && !requestedStorageLocation.equalsIgnoreCase(orderStorageLocation)) {
+      throw new IllegalArgumentException("PURCHASE_ORDER_STORAGE_LOCATION_MISMATCH");
+    }
+    BigDecimal openQuantity = decimal(poItem.get("openDeliveryQuantity"));
+    if (quantity.signum() <= 0 || quantity.compareTo(openQuantity) > 0) {
+      throw new IllegalArgumentException("GOODS_RECEIPT_QUANTITY_EXCEEDS_OPEN_QUANTITY");
+    }
+
+    Object function = function(GOODS_MOVEMENT_CREATE_BAPI);
+    Object imports = JcoReflection.invoke(function, "getImportParameterList");
+    Object header = JcoReflection.invoke(imports, "getStructure", "GOODSMVT_HEADER");
+    JcoReflection.invoke(header, "setValue", "DOC_DATE", sapDate(parameters.get("documentDate")));
+    JcoReflection.invoke(header, "setValue", "PSTNG_DATE", sapDate(parameters.get("postingDate")));
+    JcoReflection.invoke(header, "setValue", "REF_DOC_NO",
+        string(parameters.get("reference")).toUpperCase());
+    Object movementCode = JcoReflection.invoke(imports, "getStructure", "GOODSMVT_CODE");
+    JcoReflection.invoke(movementCode, "setValue", "GM_CODE", "01");
+
+    Object item = table(function, "GOODSMVT_ITEM");
+    JcoReflection.invoke(item, "appendRow");
+    JcoReflection.invoke(item, "setValue", "PO_NUMBER", purchaseOrder);
+    JcoReflection.invoke(item, "setValue", "PO_ITEM", purchaseOrderItem);
+    JcoReflection.invoke(item, "setValue", "MOVE_TYPE", "101");
+    JcoReflection.invoke(item, "setValue", "MVT_IND", "B");
+    JcoReflection.invoke(item, "setValue", "ENTRY_QNT", quantity.toPlainString());
+    JcoReflection.invoke(item, "setValue", "ENTRY_UOM",
+        string(parameters.get("unit")).toUpperCase());
+    JcoReflection.invoke(item, "setValue", "PLANT",
+        string(parameters.get("plant")).toUpperCase());
+    setIfPresent(item, "STGE_LOC", parameters.get("storageLocation"));
+    setIfPresent(item, "ITEM_TEXT", parameters.get("itemText"));
+
+    beginContext();
+    try {
+      execute(function);
+      assertNoBapiErrors(function, "SAP rejected the governed goods receipt");
+      Object exports = JcoReflection.invoke(function, "getExportParameterList");
+      Object identity = JcoReflection.invoke(exports, "getStructure", "GOODSMVT_HEADRET");
+      String materialDocument = JcoReflection.string(identity, "MAT_DOC");
+      String materialDocumentYear = JcoReflection.string(identity, "DOC_YEAR");
+      if (materialDocument.isBlank() || materialDocumentYear.isBlank()) {
+        throw new IllegalStateException("SAP did not return the material document identity");
+      }
+      commit();
+      Map<String, Object> verified = goodsMovementDetail(materialDocument, materialDocumentYear).stream()
+          .filter(row -> purchaseOrder.equals(documentNumber(row.get("purchaseOrder")))
+              && purchaseOrderItem.equals(padLeft(row.get("purchaseOrderItem"), 5)))
+          .findFirst()
+          .orElseThrow(() -> new IllegalStateException(
+              "Created material document could not be verified"));
+      var result = new LinkedHashMap<String, Object>(verified);
+      result.put("created", true);
+      result.put("posted", true);
+      result.put("verified", materialDocument.equals(documentNumber(result.get("materialDocument"))));
+      result.put("movementType", "101");
+      result.put("reference", string(parameters.get("reference")).toUpperCase());
+      return result;
+    } catch (RuntimeException error) {
+      rollback();
+      throw error;
+    } finally {
+      endContext();
+    }
+  }
+
+  private List<Map<String, Object>> goodsMovementDetail(
+      String materialDocument, String materialDocumentYear) {
+    Object function = function(GOODS_MOVEMENT_DETAIL_BAPI);
+    Object imports = JcoReflection.invoke(function, "getImportParameterList");
+    JcoReflection.invoke(imports, "setValue", "MATERIALDOCUMENT",
+        documentNumber(materialDocument));
+    JcoReflection.invoke(imports, "setValue", "MATDOCUMENTYEAR", materialDocumentYear);
+    execute(function);
+    assertNoBapiErrors(function);
+    Object exports = JcoReflection.invoke(function, "getExportParameterList");
+    Object header = JcoReflection.invoke(exports, "getStructure", "GOODSMVT_HEADER");
+    var headerFields = mapped(header, "materialDocument", "MAT_DOC",
+        "materialDocumentYear", "DOC_YEAR", "reference", "REF_DOC_NO",
+        "headerText", "HEADER_TXT");
+    headerFields.put("documentDate", dateValue(header, "DOC_DATE"));
+    headerFields.put("postingDate", dateValue(header, "PSTNG_DATE"));
+    Object items = table(function, "GOODSMVT_ITEMS");
+    int count = (Integer) JcoReflection.invoke(items, "getNumRows");
+    var output = new ArrayList<Map<String, Object>>(Math.min(count, configuration.maxRows()));
+    for (int index = 0; index < count && output.size() < configuration.maxRows(); index++) {
+      JcoReflection.invoke(items, "setRow", index);
+      var row = new LinkedHashMap<String, Object>(headerFields);
+      row.putAll(mapped(items, "materialDocumentItem", "MATDOC_ITM", "material", "MATERIAL",
+          "plant", "PLANT", "storageLocation", "STGE_LOC", "movementType", "MOVE_TYPE",
+          "quantity", "ENTRY_QNT", "unit", "ENTRY_UOM", "purchaseOrder", "PO_NUMBER",
+          "purchaseOrderItem", "PO_ITEM"));
+      output.add(row);
+    }
+    return output.isEmpty() ? List.of(headerFields) : output;
+  }
+
   private UserRecord readDetail(String username, int inactiveDays) {
     return readDetail(username, inactiveDays, true);
   }
@@ -845,6 +1058,15 @@ final class JcoSapAdapter implements SapAdapter {
 
   private void execute(Object function) { JcoReflection.invoke(function, "execute", destination); }
 
+  private void beginContext() {
+    JcoReflection.invokeStatic(JCO_CONTEXT, "begin", destination);
+  }
+
+  private void endContext() {
+    try { JcoReflection.invokeStatic(JCO_CONTEXT, "end", destination); }
+    catch (RuntimeException ignored) { /* JCo returns the connection to the pool. */ }
+  }
+
   private void assertNoBapiErrors(Object function) {
     assertNoBapiErrors(function, "SAP rejected the governed read");
   }
@@ -883,19 +1105,16 @@ final class JcoSapAdapter implements SapAdapter {
    * for lock, unlock and password reset on 2026-10-26.
    */
   private void executeAndCommit(Object function, String errorPrefix) {
-    JcoReflection.invokeStatic(JCO_CONTEXT, "begin", destination);
+    beginContext();
     try {
-      try {
-        execute(function);
-        assertNoBapiErrors(function, errorPrefix);
-        commit();
-      } catch (RuntimeException error) {
-        rollback();
-        throw error;
-      }
+      execute(function);
+      assertNoBapiErrors(function, errorPrefix);
+      commit();
+    } catch (RuntimeException error) {
+      rollback();
+      throw error;
     } finally {
-      try { JcoReflection.invokeStatic(JCO_CONTEXT, "end", destination); }
-      catch (RuntimeException ignored) { /* The connection is returned to the pool by JCo. */ }
+      endContext();
     }
   }
 
@@ -979,6 +1198,10 @@ final class JcoSapAdapter implements SapAdapter {
   private static String documentNumber(Object raw) {
     String value = string(raw);
     return "0".repeat(Math.max(0, 10 - value.length())) + value;
+  }
+  private static String padLeft(Object raw, int length) {
+    String value = string(raw);
+    return "0".repeat(Math.max(0, length - value.length())) + value;
   }
   private static String accountNumber(String value) {
     return "0".repeat(Math.max(0, 10 - value.length())) + value;

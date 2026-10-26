@@ -75,6 +75,60 @@ final class GuardServiceTest {
     }
   }
 
+  @Test void validatesAndRoutesTheGovernedIncomingInvoiceCreation() {
+    var service = new GuardService(new StubAdapter());
+    var parameters = Map.<String, Object>ofEntries(
+        Map.entry("companyCode", "1010"),
+        Map.entry("documentDate", "2025-02-15"),
+        Map.entry("postingDate", "2025-02-15"),
+        Map.entry("reference", "WB030926-INV01"),
+        Map.entry("currency", "EUR"),
+        Map.entry("grossAmount", "80.00"),
+        Map.entry("purchaseOrder", "4500000010"),
+        Map.entry("purchaseOrderItem", "00010"),
+        Map.entry("itemAmount", "80.00"),
+        Map.entry("quantity", "8"),
+        Map.entry("unit", "ST"),
+        Map.entry("referenceDocument", "5000000001"),
+        Map.entry("referenceDocumentYear", "2025"),
+        Map.entry("referenceDocumentItem", "0001"));
+    var result = service.execute("createIncomingInvoice", parameters);
+    assertEquals(true, result.getFirst().get("created"));
+    assertEquals("5100000001", result.getFirst().get("invoiceDocument"));
+    var parked = service.execute("parkIncomingInvoice", parameters);
+    assertEquals(true, parked.getFirst().get("parked"));
+    assertEquals("5100000002", parked.getFirst().get("invoiceDocument"));
+    assertEquals("REFERENCE_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("createIncomingInvoice",
+            new java.util.LinkedHashMap<>(parameters) {{ put("reference", "TOO-LONG-REFERENCE-01"); }}))
+        .getMessage());
+    assertEquals("QUANTITY_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("createIncomingInvoice",
+            new java.util.LinkedHashMap<>(parameters) {{ put("quantity", 0); }}))
+        .getMessage());
+  }
+
+  @Test void validatesAndRoutesTheGovernedGoodsReceipt() {
+    var service = new GuardService(new StubAdapter());
+    var parameters = Map.<String, Object>ofEntries(
+        Map.entry("documentDate", "2026-08-25"),
+        Map.entry("postingDate", "2026-08-25"),
+        Map.entry("reference", "WB030926-GR01"),
+        Map.entry("purchaseOrder", "4500000009"),
+        Map.entry("purchaseOrderItem", "00010"),
+        Map.entry("quantity", "6"),
+        Map.entry("unit", "PC"),
+        Map.entry("plant", "1010"),
+        Map.entry("storageLocation", "101A"),
+        Map.entry("itemText", "N8N415 receipt"));
+    var result = service.execute("createGoodsReceipt", parameters);
+    assertEquals(true, result.getFirst().get("created"));
+    assertEquals("5000000001", result.getFirst().get("materialDocument"));
+    assertEquals("QUANTITY_INVALID", assertThrows(IllegalArgumentException.class,
+        () -> service.execute("createGoodsReceipt",
+            new java.util.LinkedHashMap<>(parameters) {{ put("quantity", 0); }})).getMessage());
+  }
+
   @Test void routesTheFixedBusinessBapiAliases() {
     var service = new GuardService(new StubAdapter());
     assertEquals("listCompanyCodes", service.execute("listCompanyCodes", Map.of()).getFirst().get("operation"));
@@ -167,6 +221,16 @@ final class GuardServiceTest {
     }
     @Override public Map<String, Object> manageUser(String operation, Map<String, Object> parameters) {
       return Map.of("username", parameters.get("username"), "operation", operation);
+    }
+    @Override public Map<String, Object> createIncomingInvoice(Map<String, Object> parameters) {
+      return Map.of("invoiceDocument", "5100000001", "fiscalYear", "2025", "created", true);
+    }
+    @Override public Map<String, Object> parkIncomingInvoice(Map<String, Object> parameters) {
+      return Map.of("invoiceDocument", "5100000002", "fiscalYear", "2025", "parked", true);
+    }
+    @Override public Map<String, Object> createGoodsReceipt(Map<String, Object> parameters) {
+      return Map.of("materialDocument", "5000000001", "materialDocumentYear", "2026",
+          "created", true, "verified", true);
     }
     private UserRecord user(String username, String status, String reason) {
       return new UserRecord(username, "Dialog", "", "", "", "", "", "", "Unlocked", status, reason);

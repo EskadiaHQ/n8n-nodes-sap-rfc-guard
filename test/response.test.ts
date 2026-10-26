@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+	sanitizeBusinessHealthResponse,
 	sanitizeExecutionResponse,
 	sanitizeHealthResponse,
 	sanitizeProvisioningHealthResponse,
@@ -235,6 +236,33 @@ describe('sidecar response governance', () => {
 					capabilities: { readOnly: false, writeEnabled: true, operations: ['listSu01Users'] },
 				}),
 			/does not advertise any governed user-administration alias/,
+		);
+	});
+
+	it('accepts business mode only when an approved write alias is advertised', () => {
+		const health = sanitizeBusinessHealthResponse({
+			status: 'ok',
+			service: 'sap-rfc-guard-jco-business',
+			version: '0.4.6',
+			backend: { systemId: 'A4H', client: '250', release: '754' },
+			capabilities: {
+				readOnly: false,
+				writeEnabled: true,
+				operations: ['getPurchaseOrderDetail', 'createIncomingInvoice'],
+			},
+		});
+		assert.equal(health.writeEnabled, true);
+		assert.deepEqual(health.operations, ['getPurchaseOrderDetail', 'createIncomingInvoice']);
+		assert.equal(sanitizeBusinessHealthResponse({
+			status: 'ok',
+			capabilities: { readOnly: false, writeEnabled: true, operations: ['createGoodsReceipt'] },
+		}).writeEnabled, true);
+		assert.throws(
+			() => sanitizeBusinessHealthResponse({
+				status: 'ok',
+				capabilities: { readOnly: false, writeEnabled: true, operations: ['getPurchaseOrderDetail'] },
+			}),
+			/business-write alias/,
 		);
 	});
 });
