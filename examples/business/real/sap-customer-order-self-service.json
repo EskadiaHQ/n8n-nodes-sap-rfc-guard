@@ -1,0 +1,187 @@
+{
+  "id": "SapCustomerOrderSelfService1",
+  "name": "415 · RFC Guard · REAL SAP · Customer Order Self-Service",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Customer order self-service\n\nA trusted Teams or WhatsApp adapter authenticates the requester and supplies an opaque subject, customer account and allowlisted sales-document IDs. This workflow never derives authorization from message text. It reads real SAP status through RFC Guard and returns only customer-safe fields.\n\nKeep inactive until Header Auth, the channel adapter and positive/cross-customer negative tests are verified.",
+        "width": 680,
+        "height": 300,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-620, -360],
+      "id": "f7f641c9-527c-4d3e-a712-e7a77ae93cf1",
+      "name": "Identity and Data Contract"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sap-customer-order-query",
+        "authentication": "headerAuth",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [-520, 100],
+      "id": "d9dd1138-7f1e-48e1-aa28-47002918eaf8",
+      "name": "Authenticated Channel Request",
+      "webhookId": "1bfbdf1c-e113-4cc2-af08-e8fe62f76b2d",
+      "credentials": {
+        "httpHeaderAuth": {
+          "name": "REPLACE · Trusted Channel Adapter"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const item=$input.first();const source=item.json?.body||item.json||{};const trusted=source.trustedContext||{};const request=source.request||{};const channel=String(trusted.channel||'').toLowerCase();const subject=String(trusted.authenticatedSubject||'').trim();const customerAccount=String(trusted.customerAccount||'').padStart(10,'0');const allowed=Array.isArray(trusted.allowedSalesDocuments)?trusted.allowedSalesDocuments.map(v=>String(v).padStart(10,'0')):[];const salesDocument=String(request.salesDocument||'').padStart(10,'0');const assurance=String(trusted.identityAssurance||'');const validChannel=['microsoft_teams','whatsapp_business'].includes(channel);const validShape=/^[0-9]{10}$/.test(customerAccount)&&/^[0-9]{10}$/.test(salesDocument)&&subject.length>=6;const authorized=assurance==='VERIFIED_BY_CHANNEL_ADAPTER'&&validChannel&&validShape&&allowed.includes(salesDocument);const denialCode=!validChannel||assurance!=='VERIFIED_BY_CHANNEL_ADAPTER'?'TRUSTED_IDENTITY_REQUIRED':!validShape?'REQUEST_CONTRACT_INVALID':!allowed.includes(salesDocument)?'SALES_DOCUMENT_NOT_AUTHORIZED':null;return [{json:{authorized,denialCode,channel,subjectRef:subject.slice(0,64),customerAccount,salesDocument,requestedAt:new Date().toISOString(),correlationId:String(source.correlationId||('customer-order-'+$execution.id)),responseLanguage:String(request.language||'es').slice(0,5)}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-240, 180],
+      "id": "df02517c-8af4-4016-999b-88e3b82c8acc",
+      "name": "Authorize Customer Scope"
+    },
+    {
+      "parameters": {
+        "options": {},
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "e16f0491-5827-485d-ae16-a8bf83b824b7",
+              "leftValue": "={{ $json.authorized }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [20, 180],
+      "id": "e724a6f3-a30b-4dc9-bb5f-2f569948645a",
+      "name": "Authorized for Sales Document?"
+    },
+    {
+      "parameters": {
+        "resource": "salesOrder",
+        "operation": "getStatus",
+        "salesDocumentId": "={{ $json.salesDocument }}",
+        "correlationId": "={{ $json.correlationId }}",
+        "limit": 50,
+        "includeMetadata": true
+      },
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [300, 80],
+      "id": "5dc7c096-fc11-4f5e-876d-602bd58c2bca",
+      "name": "Read Authorized Sales Order Status",
+      "credentials": {
+        "sapRfcGuardApi": {
+          "name": "REPLACE · REAL A4H 250 · Customer Safe Read Only"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const auth=$('Authorize Customer Scope').first().json;const rows=$input.all().map(i=>i.json);if(!rows.length||rows.some(r=>String(r.salesDocument||'').padStart(10,'0')!==auth.salesDocument))throw new Error('AUTHORIZED_SALES_DOCUMENT_READBACK_MISMATCH');const items=rows.map(r=>({item:String(r.itemNumber||'').padStart(6,'0'),material:r.material||r.materialLong||null,shortText:r.shortText||null,requestedQuantity:Number(r.requestedQuantity||0),confirmedQuantity:Number(r.confirmedQuantity||0),salesUnit:r.salesUnit||null,itemDeliveryStatus:r.itemDeliveryStatus||null,delivery:r.delivery||null,deliveredQuantity:Number(r.deliveredQuantity||0),requestedDeliveryDate:r.requestedDeliveryDate||null,deliveryDate:r.deliveryDate||null}));return [{json:{status:'AUTHORIZED_SAP_RESPONSE',salesDocument:auth.salesDocument,headerProcessingStatus:rows[0].headerProcessingStatus||null,headerDeliveryStatus:rows[0].headerDeliveryStatus||null,items,source:{system:'A4H',client:'250',operation:'getSalesOrderStatus',syntheticData:rows[0]._rfc?.syntheticData??null},audit:{channel:auth.channel,subjectRef:auth.subjectRef,customerAccount:auth.customerAccount,correlationId:auth.correlationId,executionId:String($execution.id),readAt:new Date().toISOString()}}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [580, 80],
+      "id": "ba9525ea-250d-4480-922b-4f9283533f48",
+      "name": "Project Customer-Safe Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [860, 80],
+      "id": "ea183ed4-f454-46b9-a89f-ae3d58cfb9f8",
+      "name": "Return Authorized Status"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const j=$input.first().json;return [{json:{status:'DENIED',code:j.denialCode||'SALES_DOCUMENT_NOT_AUTHORIZED',message:'No se puede consultar ese pedido con la identidad y el alcance recibidos.',audit:{channel:j.channel||null,subjectRef:j.subjectRef||null,correlationId:j.correlationId,executionId:String($execution.id),sapCallPerformed:false}}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 300],
+      "id": "1fdb1480-4caa-44b5-91c8-ac2290c2144a",
+      "name": "Build Safe Denial"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [580, 300],
+      "id": "a6f66dc6-f52f-4855-a2c0-c8dc9201bd53",
+      "name": "Return Scope Denial"
+    }
+  ],
+  "connections": {
+    "Authenticated Channel Request": {
+      "main": [[{"node": "Authorize Customer Scope", "type": "main", "index": 0}]]
+    },
+    "Authorize Customer Scope": {
+      "main": [[{"node": "Authorized for Sales Document?", "type": "main", "index": 0}]]
+    },
+    "Authorized for Sales Document?": {
+      "main": [
+        [{"node": "Read Authorized Sales Order Status", "type": "main", "index": 0}],
+        [{"node": "Build Safe Denial", "type": "main", "index": 0}]
+      ]
+    },
+    "Read Authorized Sales Order Status": {
+      "main": [[{"node": "Project Customer-Safe Response", "type": "main", "index": 0}]]
+    },
+    "Project Customer-Safe Response": {
+      "main": [[{"node": "Return Authorized Status", "type": "main", "index": 0}]]
+    },
+    "Build Safe Denial": {
+      "main": [[{"node": "Return Scope Denial", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "evidenceStatus": "REAL_SAP_IMPLEMENTATION_PENDING_AUTHENTICATED_CHANNEL_E2E"
+  },
+  "tags": []
+}

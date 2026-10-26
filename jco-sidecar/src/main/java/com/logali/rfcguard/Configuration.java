@@ -75,8 +75,10 @@ record Configuration(
     }
 
     String mode = env.getOrDefault("RFC_GUARD_MODE", "read-only").trim();
-    if (!mode.equals("read-only") && !mode.equals("user-provisioning")) {
-      throw new IllegalArgumentException("RFC_GUARD_MODE must be read-only or user-provisioning");
+    if (!mode.equals("read-only") && !mode.equals("user-provisioning")
+        && !mode.equals("business-operations")) {
+      throw new IllegalArgumentException(
+          "RFC_GUARD_MODE must be read-only, user-provisioning or business-operations");
     }
     boolean userCreationEnabled = "true".equalsIgnoreCase(
         env.getOrDefault("RFC_GUARD_ENABLE_USER_CREATE", "false"));

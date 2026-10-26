@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
 	allowedDataFieldsForOperation,
+	assertBusinessOperationsCredential,
 	assertCreateConfirmation,
+	assertGoodsReceiptConfirmation,
+	assertInvoiceCreateConfirmation,
+	assertInvoiceParkConfirmation,
 	assertOperationAllowed,
 	assertWriteConfirmation,
 	assertOperationId,
@@ -17,6 +23,9 @@ import {
 	USER_LOCK_OPERATION,
 	USER_LOGON_RESET_OPERATION,
 	USER_UNLOCK_OPERATION,
+	INVOICE_CREATE_OPERATION,
+	INVOICE_PARK_OPERATION,
+	GOODS_RECEIPT_CREATE_OPERATION,
 } from '../nodes/SapRfcGuard/governance';
 
 const credentials = {
@@ -98,7 +107,7 @@ describe('operation governance', () => {
 					dataFieldPoliciesJson:
 						'{"listSu01Users":["username"],"resetSu01UserPassword":["username"]}',
 				}),
-			/read-only credential cannot allow a user-administration operation/,
+			/read-only credential cannot allow a write operation/,
 		);
 		assert.throws(
 			() =>
@@ -126,6 +135,99 @@ describe('operation governance', () => {
 		assert.equal(userWriteOperationForNodeOperation('resetPassword'), USER_LOGON_RESET_OPERATION);
 		assert.throws(() => userWriteOperationForNodeOperation('deleteUser'), /Unsupported/);
 	});
+
+	it('keeps business-operation and user-administration aliases on separate credentials', () => {
+		const business = {
+			...credentials,
+			sidecarMode: 'businessOperations' as const,
+			allowIncomingInvoiceCreation: true,
+			allowedOperations: `${INVOICE_CREATE_OPERATION}, ${USER_LOCK_OPERATION}`,
+			dataFieldPoliciesJson: `{"${INVOICE_CREATE_OPERATION}":["invoiceDocument"],"${USER_LOCK_OPERATION}":["username"]}`,
+		};
+		assert.throws(() => validateGovernanceConfiguration(business), /cannot provision users/);
+		const provisioning = {
+			...credentials,
+			sidecarMode: 'userProvisioning' as const,
+			allowUserCreation: true,
+			allowedOperations: `${USER_LOCK_OPERATION}, ${INVOICE_PARK_OPERATION}`,
+			dataFieldPoliciesJson: `{"${USER_LOCK_OPERATION}":["username"],"${INVOICE_PARK_OPERATION}":["invoiceDocument"]}`,
+		};
+		assert.throws(() => validateGovernanceConfiguration(provisioning), /may allow only/);
+		assert.throws(
+			() =>
+				validateGovernanceConfiguration({
+					...credentials,
+					allowedOperations: `listSu01Users, ${GOODS_RECEIPT_CREATE_OPERATION}`,
+					dataFieldPoliciesJson: `{"listSu01Users":["username"],"${GOODS_RECEIPT_CREATE_OPERATION}":["materialDocument"]}`,
+				}),
+			/read-only credential cannot allow a write operation/,
+		);
+	});
+	it('isolates real invoice creation behind business mode and an exact reference confirmation', () => {
+		const business = {
+			...credentials,
+			sidecarMode: 'businessOperations' as const,
+			allowIncomingInvoiceCreation: true,
+			allowedOperations: `getPurchaseOrderDetail, ${INVOICE_CREATE_OPERATION}`,
+			dataFieldPoliciesJson:
+				`{"getPurchaseOrderDetail":["purchaseOrder"],"${INVOICE_CREATE_OPERATION}":["invoiceDocument","fiscalYear","created","verified"]}`,
+		};
+		assert.doesNotThrow(() => validateGovernanceConfiguration(business));
+		assert.doesNotThrow(() => assertBusinessOperationsCredential(business));
+		assert.equal(
+			assertInvoiceCreateConfirmation('wb030926-inv01', 'CREATE INVOICE WB030926-INV01'),
+			'WB030926-INV01',
+		);
+		assert.throws(
+			() => assertInvoiceCreateConfirmation('WB030926-INV01', 'CREATE INVOICE OTHER'),
+			/Confirmation must be exactly/,
+		);
+		const parking = {
+			...business,
+			allowedOperations: `getPurchaseOrderDetail, ${INVOICE_PARK_OPERATION}`,
+			dataFieldPoliciesJson:
+				`{"getPurchaseOrderDetail":["purchaseOrder"],"${INVOICE_PARK_OPERATION}":["invoiceDocument","fiscalYear","parked","verified"]}`,
+		};
+		assert.doesNotThrow(() => validateGovernanceConfiguration(parking));
+		assert.equal(
+			assertInvoiceParkConfirmation('wb030926-inv02', 'PARK INVOICE WB030926-INV02'),
+			'WB030926-INV02',
+		);
+		assert.throws(
+			() => assertInvoiceParkConfirmation('WB030926-INV02', 'CREATE INVOICE WB030926-INV02'),
+			/Confirmation must be exactly/,
+		);
+		assert.throws(
+			() => validateGovernanceConfiguration({ ...business, allowIncomingInvoiceCreation: false }),
+			/explicit invoice-creation opt-in/,
+		);
+		assert.throws(
+			() => validateGovernanceConfiguration({ ...business, allowAiTool: true }),
+			/cannot be enabled for AI tools/,
+		);
+		const goodsReceipt = {
+			...credentials,
+			sidecarMode: 'businessOperations' as const,
+			allowGoodsReceiptCreation: true,
+			allowedOperations: `getPurchaseOrderDetail, ${GOODS_RECEIPT_CREATE_OPERATION}`,
+			dataFieldPoliciesJson:
+				`{"getPurchaseOrderDetail":["purchaseOrder"],"${GOODS_RECEIPT_CREATE_OPERATION}":["materialDocument","materialDocumentYear","created","verified"]}`,
+		};
+		assert.doesNotThrow(() => validateGovernanceConfiguration(goodsReceipt));
+		assert.doesNotThrow(() => assertBusinessOperationsCredential(goodsReceipt, 'goodsReceipt'));
+		assert.equal(
+			assertGoodsReceiptConfirmation('wb030926-gr01', 'POST GOODS RECEIPT WB030926-GR01'),
+			'WB030926-GR01',
+		);
+		assert.throws(
+			() => assertGoodsReceiptConfirmation('WB030926-GR01', 'POST GOODS RECEIPT OTHER'),
+			/Confirmation must be exactly/,
+		);
+		assert.throws(
+			() => validateGovernanceConfiguration({ ...goodsReceipt, allowGoodsReceiptCreation: false }),
+			/explicit goods-receipt opt-in/,
+		);
+	});
 });
 
 describe('data field policies', () => {
@@ -150,6 +252,15 @@ describe('data field policies', () => {
 });
 
 describe('connection and input validation', () => {
+	it('ships contract fixture default tokens that satisfy the 32-byte minimum', () => {
+		for (const file of ['server.mjs', 'userLifecycle.e2e.test.mjs']) {
+			const source = readFileSync(join(__dirname, '..', 'contract-sidecar', file), 'utf8');
+			const tokens = [...source.matchAll(/'(RFC_GUARD_[A-Z0-9_]+)'/g)].map((match) => match[1]);
+			assert.ok(tokens.length > 0, file);
+			for (const token of tokens) assert.ok(Buffer.byteLength(token, 'utf8') >= 32, `${file}: ${token}`);
+		}
+	});
+
 	it('requires an API token with at least 32 bytes', () => {
 		assert.doesNotThrow(() => validateGovernanceConfiguration(credentials));
 		assert.throws(

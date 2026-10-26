@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.6.0 - 2026-10-26
+
+- Reunify the two lines of this package. The business-operations line was installed in
+  the Logali n8n instances as 0.4.14 but never published. The published line covers the
+  0.4.13 security hardening and the 0.5.x user administration. One package again serves
+  read-only, business-operations and user-provisioning credentials.
+- Business-operations credentials (invoice create/park and goods receipt) now also get
+  the 0.4.13 hardening: unhealthy sidecars fail closed and API tokens need at least
+  32 bytes.
+- Read-only credentials reject every write alias. Business-operation credentials cannot
+  allow any user-administration alias.
+- Keep the scoped retry for the operated legacy provisioner (`https://sap-rfc-provision-jco:8080`,
+  user-provisioning credentials only). It was installed as a DEV-only client patch on
+  2026-10-23: at most two attempts within the original timeout, health retried on
+  transient errors and HTTP 502/503/504, user creation retried only when the request
+  provably never left n8n, redirects disabled, and one secret-free
+  `SAP_PROVISIONER_FAILURE` log line per final failure. Every other destination keeps a
+  single attempt.
+- The synthetic contract fixture's default token is now `RFC_GUARD_CONTRACT_FIXTURE_ONLY_01`.
+  The old 26-byte default could not pass the 32-byte token check from 0.4.13, so the
+  fixture was unusable with any hardened release. Set the same value in the credential, or
+  pass your own `CONTRACT_TOKEN` of at least 32 bytes.
+- JCo sidecar 0.6.0 serves the three modes from one build: `read-only`,
+  `business-operations` (reads plus invoice create/park and goods receipt) and
+  `user-provisioning` (create, lock, unlock and reset). Each write is accepted only in
+  its own mode, with its own `X-RFC-Guard-Mode` header and exact confirmation.
+
 ## JCo sidecar 0.5.1 - 2026-10-26 (no npm release)
 
 - Read the SAP `ISLOCKED` codes returned by `BAPI_USER_GET_DETAIL` (`L` locked,
@@ -28,6 +55,36 @@
   write aliases over in-memory users, plus contract and end-to-end tests that run
   the published example workflow through the node.
 - New examples in `examples/su01/user-admin/` (synthetic and real, both inactive).
+
+## Operated 0.4.14 - 2026-08-25 (installed, never published)
+
+- Add a separately governed `Incoming Invoice / Park` operation backed by
+  `BAPI_INCOMINGINVOICE_PARK`, explicit commit and read-back verification.
+- Require the exact `PARK INVOICE <reference>` confirmation and a credential policy that
+  explicitly allowlists `parkIncomingInvoice`; posting and user provisioning remain separate.
+- Return explicit `parked` and `posted` evidence so downstream workflows cannot confuse an
+  MIR7 preliminary invoice with an FI document that has already been posted.
+- Add a separately allowlisted `Goods Movement / Create Purchase-Order Goods Receipt` operation
+  backed by `BAPI_GOODSMVT_CREATE`, fixed movement 101, `GM_CODE 01`, explicit commit/rollback and
+  `BAPI_GOODSMVT_GETDETAIL` read-back verification.
+- Require `POST GOODS RECEIPT <reference>`, exact open-quantity validation and a credential opt-in
+  dedicated to goods receipts; AI Tool execution remains blocked.
+- Add an importable customer order self-service contract that requires trusted channel identity
+  and an allowlisted sales document before the real SAP read, returning HTTP 403 with zero SAP
+  calls for cross-customer or unauthenticated requests.
+
+## Operated 0.4.13 - 2026-08-24 (installed, never published)
+
+- Add a governed `Incoming Invoice / Create` operation backed by
+  `BAPI_INCOMINGINVOICE_CREATE`, explicit commit and read-back verification.
+- Require a dedicated business-operations credential, explicit opt-in and exact
+  `CREATE INVOICE <reference>` confirmation; AI Tool execution remains blocked.
+- Preserve governed purchase-order and invoice reads in the same operated test sidecar so a
+  workflow can validate, post and verify one real MM invoice end to end.
+- Reject unexpected or malformed invoice fields before SAP and avoid duplicate writes by
+  reusing an existing document with the same company, date and reference.
+- Keep `BAPI_INCOMINGINVOICE_CREATE` and `BAPI_TRANSACTION_COMMIT` in one stateful JCo context;
+  the A4H/250 acceptance created `5105600755/2025` and an identical retry reused it.
 
 ## 0.4.13 - 2026-08-23
 

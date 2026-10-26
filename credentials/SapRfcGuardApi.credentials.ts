@@ -17,11 +17,30 @@ export class SapRfcGuardApi implements ICredentialType {
 			type: 'options',
 			options: [
 				{ name: 'Read Only', value: 'readOnly' },
+				{ name: 'Business Operations', value: 'businessOperations' },
 				{ name: 'User Provisioning', value: 'userProvisioning' },
 			],
 			default: 'readOnly',
 			description:
 				'Use a separate sidecar and credential for provisioning; never reuse a read-only endpoint for writes',
+		},
+		{
+			displayName: 'Allow Incoming-Invoice Creation',
+			name: 'allowIncomingInvoiceCreation',
+			type: 'boolean',
+			default: false,
+			description:
+				'Whether this credential can create one governed MM supplier invoice after exact confirmation',
+			displayOptions: { show: { sidecarMode: ['businessOperations'] } },
+		},
+		{
+			displayName: 'Allow Goods-Receipt Creation',
+			name: 'allowGoodsReceiptCreation',
+			type: 'boolean',
+			default: false,
+			description:
+				'Whether this credential can post one governed 101 goods receipt after exact confirmation',
+			displayOptions: { show: { sidecarMode: ['businessOperations'] } },
 		},
 		{
 			displayName: 'Sidecar Base URL',

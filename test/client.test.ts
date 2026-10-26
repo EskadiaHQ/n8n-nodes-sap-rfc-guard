@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+	executeApprovedBusinessWriteOperation,
 	executeApprovedOperation,
 	executeApprovedWriteOperation,
 	testSidecarConnection,
@@ -112,5 +113,49 @@ describe('sidecar HTTP contract', () => {
 			confirmation: 'CREATE N8N_DEMO_01',
 		});
 		assert.equal(JSON.stringify(captured).toLowerCase().includes('password'), false);
+	});
+
+	it('uses business mode for real invoice reads and a separate confirmed write contract', async () => {
+		let read: RfcGuardRequestOptions | undefined;
+		const business = {
+			...credentials,
+			sidecarMode: 'businessOperations' as const,
+			allowIncomingInvoiceCreation: true,
+		};
+		await executeApprovedOperation(
+			business,
+			async (options) => {
+				read = options;
+				return { data: [] };
+			},
+			'getPurchaseOrderDetail',
+			{ purchaseOrder: '4500000010' },
+			'trace-business-read',
+		);
+		assert.equal(read?.headers['X-RFC-Guard-Mode'], 'business-operations');
+		assert.deepEqual(read?.body?.context, {
+			client: 'n8n-sap-rfc-guard',
+			readOnly: true,
+		});
+
+		let write: RfcGuardRequestOptions | undefined;
+		await executeApprovedBusinessWriteOperation(
+			business,
+			async (options) => {
+				write = options;
+				return { data: [{ created: true }] };
+			},
+			'createIncomingInvoice',
+			{ reference: 'WB030926-INV01', purchaseOrder: '4500000010' },
+			'trace-business-write',
+			'CREATE INVOICE WB030926-INV01',
+		);
+		assert.equal(write?.headers['X-RFC-Guard-Mode'], 'business-operations');
+		assert.deepEqual(write?.body?.context, {
+			client: 'n8n-sap-rfc-guard',
+			readOnly: false,
+			write: true,
+			confirmation: 'CREATE INVOICE WB030926-INV01',
+		});
 	});
 });

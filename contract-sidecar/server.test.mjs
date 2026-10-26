@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import net from 'node:net';
 import { after, before, test } from 'node:test';
 
-const token = 'RFC_GUARD_CONTRACT_FIXTURE';
+const token = 'RFC_GUARD_CONTRACT_FIXTURE_ONLY_01';
 let child;
 let origin;
 

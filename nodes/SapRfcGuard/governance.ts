@@ -24,6 +24,9 @@ export function userWriteOperationForNodeOperation(nodeOperation: string): strin
 	}
 	throw new OperationalError(`Unsupported user administration operation ${nodeOperation}.`);
 }
+export const INVOICE_CREATE_OPERATION = 'createIncomingInvoice';
+export const INVOICE_PARK_OPERATION = 'parkIncomingInvoice';
+export const GOODS_RECEIPT_CREATE_OPERATION = 'createGoodsReceipt';
 
 export function parseAllowedOperations(value: string): Set<string> {
 	const operations = String(value ?? '')
@@ -153,8 +156,36 @@ export function validateGovernanceConfiguration(credentials: SapRfcGuardCredenti
 		}
 	}
 	const mode = credentials.sidecarMode ?? 'readOnly';
-	if (mode === 'readOnly' && [...allowed].some((operation) => USER_WRITE_OPERATIONS.has(operation))) {
-		throw new OperationalError('A read-only credential cannot allow a user-administration operation.');
+	const allowsUserWrite = [...allowed].some((operation) => USER_WRITE_OPERATIONS.has(operation));
+	const businessWriteOperations = [
+		INVOICE_CREATE_OPERATION,
+		INVOICE_PARK_OPERATION,
+		GOODS_RECEIPT_CREATE_OPERATION,
+	];
+	if (
+		mode === 'readOnly' &&
+		(allowsUserWrite || businessWriteOperations.some((operation) => allowed.has(operation)))
+	) {
+		throw new OperationalError('A read-only credential cannot allow a write operation.');
+	}
+	if (mode === 'businessOperations') {
+		const allowsInvoice =
+			allowed.has(INVOICE_CREATE_OPERATION) || allowed.has(INVOICE_PARK_OPERATION);
+		const allowsGoodsReceipt = allowed.has(GOODS_RECEIPT_CREATE_OPERATION);
+		if (allowsInvoice && credentials.allowIncomingInvoiceCreation !== true) {
+			throw new OperationalError('Business operations require explicit invoice-creation opt-in.');
+		}
+		if (allowsGoodsReceipt && credentials.allowGoodsReceiptCreation !== true) {
+			throw new OperationalError('Business operations require explicit goods-receipt opt-in.');
+		}
+		if (credentials.allowAiTool === true) {
+			throw new OperationalError('Business-operation credentials cannot be enabled for AI tools.');
+		}
+		if ((!allowsInvoice && !allowsGoodsReceipt) || allowsUserWrite) {
+			throw new OperationalError(
+				'Business-operation credentials must allow an approved invoice or goods-receipt write and cannot provision users.',
+			);
+		}
 	}
 	if (mode === 'userProvisioning') {
 		if (credentials.allowUserCreation !== true) {
@@ -183,6 +214,57 @@ export function assertProvisioningCredential(credentials: SapRfcGuardCredentials
 	if (credentials.allowUserCreation !== true) {
 		throw new OperationalError('The selected credential does not allow user creation.');
 	}
+}
+
+export function assertBusinessOperationsCredential(
+	credentials: SapRfcGuardCredentials,
+	operation: 'invoice' | 'goodsReceipt' = 'invoice',
+): void {
+	if ((credentials.sidecarMode ?? 'readOnly') !== 'businessOperations') {
+		throw new OperationalError('Select a dedicated Business Operations credential for this operation.');
+	}
+	if (operation === 'invoice' && credentials.allowIncomingInvoiceCreation !== true) {
+		throw new OperationalError('The selected credential does not allow incoming-invoice creation.');
+	}
+	if (operation === 'goodsReceipt' && credentials.allowGoodsReceiptCreation !== true) {
+		throw new OperationalError('The selected credential does not allow goods-receipt creation.');
+	}
+}
+
+export function assertGoodsReceiptConfirmation(reference: string, confirmation: string): string {
+	const normalized = reference.trim().toUpperCase();
+	if (!/^[A-Z0-9._/-]{1,16}$/.test(normalized)) {
+		throw new OperationalError('Goods-receipt reference must contain 1-16 safe characters.');
+	}
+	const expected = `POST GOODS RECEIPT ${normalized}`;
+	if (confirmation.trim().toUpperCase() !== expected) {
+		throw new OperationalError(`Confirmation must be exactly ${expected}.`);
+	}
+	return normalized;
+}
+
+export function assertInvoiceCreateConfirmation(reference: string, confirmation: string): string {
+	return assertInvoiceWriteConfirmation(reference, confirmation, 'CREATE');
+}
+
+export function assertInvoiceParkConfirmation(reference: string, confirmation: string): string {
+	return assertInvoiceWriteConfirmation(reference, confirmation, 'PARK');
+}
+
+function assertInvoiceWriteConfirmation(
+	reference: string,
+	confirmation: string,
+	verb: 'CREATE' | 'PARK',
+): string {
+	const normalized = reference.trim().toUpperCase();
+	if (!/^[A-Z0-9._/-]{1,16}$/.test(normalized)) {
+		throw new OperationalError('Invoice reference must contain 1-16 safe characters.');
+	}
+	const expected = `${verb} INVOICE ${normalized}`;
+	if (confirmation.trim().toUpperCase() !== expected) {
+		throw new OperationalError(`Confirmation must be exactly ${expected}.`);
+	}
+	return normalized;
 }
 
 export function assertWriteConfirmation(
