@@ -8,6 +8,8 @@ services:
     working_dir: /tmp
     env_file:
       - /srv/sap-rfc-guard/secrets/sap-rfc-provision.env
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms32m -Xmx192m"
     volumes:
       - /srv/sap-rfc-guard/vendor/sap-jco:/opt/sap/jco:ro
       - /srv/sap-rfc-guard/tls/sap-rfc-provision-jco/server.p12:/run/secrets/sap-rfc-guard-server.p12:ro
@@ -22,7 +24,8 @@ services:
     security_opt:
       - no-new-privileges:true
     pids_limit: 64
-    mem_limit: 384m
+    mem_limit: 768m
+    memswap_limit: 1g
     cpus: 0.5
     expose:
       - "8080"
