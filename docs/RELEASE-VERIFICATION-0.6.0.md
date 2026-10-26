@@ -2,8 +2,27 @@
 
 ## Outcome
 
-`0.6.0` reunifies the two lines of this package. The publication evidence is
-added below once the trusted npm workflow has run.
+`n8n-nodes-sap-rfc-guard@0.6.0` is published under the npm `latest` tag and
+GitHub release `v0.6.0`. Pull request #26 was merged into `main` at commit
+`2d3e9c3`.
+
+## Publication evidence
+
+- Pull-request CI: passed on #26.
+- Post-merge CI: [run 40310153946](https://github.com/EskadiaHQ/n8n-nodes-sap-rfc-guard/actions/runs/40310153946).
+- Trusted npm publication: [run 40310166180](https://github.com/EskadiaHQ/n8n-nodes-sap-rfc-guard/actions/runs/40310166180).
+- GitHub release: [v0.6.0](https://github.com/EskadiaHQ/n8n-nodes-sap-rfc-guard/releases/tag/v0.6.0).
+- Registry: `latest` resolves to `0.6.0`, with an npm provenance attestation. The
+  Sigstore transparency log entry is
+  [3483842540](https://search.sigstore.dev/?logIndex=3483842540).
+- Published tarball: SHA-1 `3c9c740629b071a2794605fc9332ba509e333cba`, integrity
+  `sha512-rya4jqxYF2ChpT1KvsZAb0hA5CgR6MxGdhuDM8DQ+I+a3qtxXmrDWLRzit2Foil/Okv5Y88p6U4Q5qXxliSR2Q==`.
+  Both match the values reported by the publish run.
+- The 34 compiled files under `dist/` of the published tarball are byte-identical
+  to the package installed in n8n DEV before publication. Only documentation
+  files differ.
+- The registry served `0.6.0` as `latest` about two minutes after the publish
+  run started.
 
 ## Why this release exists
 
