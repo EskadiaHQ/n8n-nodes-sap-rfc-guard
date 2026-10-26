@@ -58,7 +58,7 @@ and, where allowed, a `listCompanyCodes` read.
 - 2 credentials had a token shorter than 32 bytes and are now rejected before any
   request. One was the synthetic fixture, rotated to the new default. The other
   already failed with HTTP 401 on `0.4.14`.
-- Every resource and operation used by the 173 RFC Guard nodes in both instances
+- Every resource and operation used by the 177 RFC Guard nodes in both instances
   exists in `0.6.0`.
 
 ### n8n DEV installation
