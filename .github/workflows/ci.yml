@@ -36,3 +36,4 @@ jobs:
           java-version: 21
           cache: maven
       - run: mvn -B test package
+      - run: python3 scripts/test_healthcheck.py
