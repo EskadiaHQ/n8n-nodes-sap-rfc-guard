@@ -1,5 +1,16 @@
 # Changelog
 
+## JCo sidecar 0.5.1 - 2026-10-26 (no npm release)
+
+- Read the SAP `ISLOCKED` codes returned by `BAPI_USER_GET_DETAIL` (`L` locked,
+  `U` unlocked). Every real SU01 user was reported as `Unlocked`, so
+  `listSu01RiskAccounts` missed locked accounts and `lockSu01User` could not
+  verify its own result. Rebuild operated sidecars to get correct lock states.
+- Lock, unlock and password reset run their BAPI and commit inside a stateful
+  JCo context and verify with an uncached read-back. Verified against A4H/250.
+- Runtime healthcheck without a second JVM and an explicit JVM memory budget
+  (PR #24).
+
 ## 0.5.0 - 2026-10-26
 
 - Add governed user lifecycle operations to **User Administration**: *Lock User*
