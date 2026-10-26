@@ -63,4 +63,22 @@ final class UserRecordTest {
     raw.put("lastLogonAt", "20260820");
     return raw;
   }
+
+  @Test void readsTheLockCodesReturnedBySapBapiUserGetDetail() {
+    var today = java.time.LocalDate.of(2026, 10, 26);
+    java.util.function.Function<String[], String> status = flags -> {
+      var raw = new java.util.LinkedHashMap<String, String>();
+      raw.put("username", "N8N_ADM_1026"); raw.put("userType", "C");
+      raw.put("validFrom", "20261026"); raw.put("validTo", "20261026");
+      raw.put("globalLock", flags[0]); raw.put("localLock", flags[1]);
+      raw.put("wrongLogonLock", flags[2]); raw.put("noPassword", flags[3]);
+      return UserRecord.classify(raw, 90, today).lockStatus();
+    };
+    org.junit.jupiter.api.Assertions.assertEquals("Unlocked", status.apply(new String[] {"U", "U", "U", "U"}));
+    org.junit.jupiter.api.Assertions.assertEquals("LockedByAdministrator", status.apply(new String[] {"U", "L", "U", "U"}));
+    org.junit.jupiter.api.Assertions.assertEquals("GloballyLocked", status.apply(new String[] {"L", "U", "U", "U"}));
+    org.junit.jupiter.api.Assertions.assertEquals("LockedByFailedLogons", status.apply(new String[] {"U", "U", "L", "U"}));
+    org.junit.jupiter.api.Assertions.assertEquals("NoPassword", status.apply(new String[] {"U", "U", "U", "L"}));
+    org.junit.jupiter.api.Assertions.assertEquals("LockedByAdministrator", status.apply(new String[] {"", "X", "", ""}));
+  }
 }
