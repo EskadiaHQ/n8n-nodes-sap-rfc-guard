@@ -3,7 +3,7 @@
 Security-first n8n community node for governed SAP RFC/BAPI reads, isolated
 Communication-user provisioning and explicitly confirmed test-system business writes.
 
-> **Early access (`0.4.x`)**: the n8n governance contract and synthetic examples
+> **Early access (`0.x`)**: the n8n governance contract and synthetic examples
 > are testable now. Real SAP execution additionally requires the operated JCo
 > sidecar, SAP's proprietary JCo runtime and a least-privilege SAP identity.
 
@@ -18,7 +18,8 @@ n8n workflow -> Logali SAP RFC Guard -> HTTPS sidecar -> RFC/SNC -> SAP R/3, ECC
 ## Security model
 
 - Read operations remain on a dedicated sidecar that must attest `readOnly: true`.
-- User creation requires a different sidecar, token and credential that attest `writeEnabled: true`.
+- User administration (create, lock, unlock and password reset) requires a different sidecar,
+  token and credential that attest `writeEnabled: true`.
 - Incoming-invoice creation and parking use a dedicated business-operations credential, explicit
   opt-in and an exact confirmation tied to the invoice reference.
 - Purchase-order goods receipts use a separate credential opt-in, an exact
