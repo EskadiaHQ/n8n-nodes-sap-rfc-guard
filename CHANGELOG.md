@@ -18,6 +18,10 @@
   provably never left n8n, redirects disabled, and one secret-free
   `SAP_PROVISIONER_FAILURE` log line per final failure. Every other destination keeps a
   single attempt.
+- The synthetic contract fixture's default token is now `RFC_GUARD_CONTRACT_FIXTURE_ONLY_01`.
+  The old 26-byte default could not pass the 32-byte token check from 0.4.13, so the
+  fixture was unusable with any hardened release. Set the same value in the credential, or
+  pass your own `CONTRACT_TOKEN` of at least 32 bytes.
 - JCo sidecar 0.6.0 serves the three modes from one build: `read-only`,
   `business-operations` (reads plus invoice create/park and goods receipt) and
   `user-provisioning` (create, lock, unlock and reset). Each write is accepted only in

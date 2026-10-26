@@ -5,7 +5,7 @@ const port = Number(process.env.PORT ?? 8080);
 // CONTRACT_MODE=user-provisioning starts a separate synthetic provisioning fixture (never both).
 const provisioningMode = process.env.CONTRACT_MODE === 'user-provisioning';
 const provisioningPrefix = process.env.PROVISIONING_PREFIX ?? 'N8N_DEMO_';
-const expectedToken = process.env.CONTRACT_TOKEN ?? 'RFC_GUARD_CONTRACT_FIXTURE';
+const expectedToken = process.env.CONTRACT_TOKEN ?? 'RFC_GUARD_CONTRACT_FIXTURE_ONLY_01';
 const maxBodyBytes = 64 * 1024;
 const operations = Object.freeze([
   'listSu01Users',

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
 import {
@@ -250,6 +252,15 @@ describe('data field policies', () => {
 });
 
 describe('connection and input validation', () => {
+	it('ships contract fixture default tokens that satisfy the 32-byte minimum', () => {
+		for (const file of ['server.mjs', 'userLifecycle.e2e.test.mjs']) {
+			const source = readFileSync(join(__dirname, '..', 'contract-sidecar', file), 'utf8');
+			const tokens = [...source.matchAll(/'(RFC_GUARD_[A-Z0-9_]+)'/g)].map((match) => match[1]);
+			assert.ok(tokens.length > 0, file);
+			for (const token of tokens) assert.ok(Buffer.byteLength(token, 'utf8') >= 32, `${file}: ${token}`);
+		}
+	});
+
 	it('requires an API token with at least 32 bytes', () => {
 		assert.doesNotThrow(() => validateGovernanceConfiguration(credentials));
 		assert.throws(
