@@ -71,9 +71,14 @@ record UserRecord(
     return "Unlocked";
   }
 
-  private static boolean flag(Map<String, String> raw, String name) {
+  /**
+   * BAPI_USER_GET_DETAIL reports ISLOCKED flags as L (locked) or U (unlocked). X, 1 and TRUE are
+   * still accepted for fixtures and older adapters.
+   */
+  static boolean flag(Map<String, String> raw, String name) {
     String value = value(raw, name);
-    return "X".equalsIgnoreCase(value) || "1".equals(value) || "TRUE".equalsIgnoreCase(value);
+    return "L".equalsIgnoreCase(value) || "X".equalsIgnoreCase(value) || "1".equals(value)
+        || "TRUE".equalsIgnoreCase(value);
   }
 
   private static String mapUserType(String code) {

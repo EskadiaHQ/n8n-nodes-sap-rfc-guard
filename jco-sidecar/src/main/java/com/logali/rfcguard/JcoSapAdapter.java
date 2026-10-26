@@ -34,6 +34,7 @@ final class JcoSapAdapter implements SapAdapter {
   private static final String VENDOR_DETAIL_BAPI = "BAPI_VENDOR_GETDETAIL";
   private static final String CUSTOMER_DETAIL_BAPI = "BAPI_CUSTOMER_GETDETAIL2";
   private static final String COMMIT_BAPI = "BAPI_TRANSACTION_COMMIT";
+  private static final String JCO_CONTEXT = "com.sap.conn.jco.JCoContext";
   private static final String ROLLBACK_BAPI = "BAPI_TRANSACTION_ROLLBACK";
   private final Configuration configuration;
   private final Object destination;
@@ -741,16 +742,9 @@ final class JcoSapAdapter implements SapAdapter {
       JcoReflection.invoke(password, "setValue", "BAPIPWD", configuration.newUserInitialPassword());
       JcoReflection.invoke(passwordX, "setValue", "BAPIPWD", "X");
     }
-    try {
-      execute(function);
-      assertNoBapiErrors(function, "SAP rejected the governed user change");
-      commit();
-    } catch (RuntimeException error) {
-      rollback();
-      throw error;
-    }
+    executeAndCommit(function, "SAP rejected the governed user change");
 
-    UserRecord after = readDetail(username, configuration.inactiveDays());
+    UserRecord after = readDetail(username, configuration.inactiveDays(), false);
     boolean verified = switch (operation) {
       case "lockSu01User" -> !"Unlocked".equals(after.lockStatus());
       case "unlockSu01User" -> "Unlocked".equals(after.lockStatus())
@@ -798,10 +792,15 @@ final class JcoSapAdapter implements SapAdapter {
   }
 
   private UserRecord readDetail(String username, int inactiveDays) {
+    return readDetail(username, inactiveDays, true);
+  }
+
+  /** cacheResults=false is used to verify a change: SAP must not answer from its detail buffer. */
+  private UserRecord readDetail(String username, int inactiveDays, boolean cacheResults) {
     Object function = function(USER_DETAIL_BAPI);
     Object imports = JcoReflection.invoke(function, "getImportParameterList");
     JcoReflection.invoke(imports, "setValue", "USERNAME", username);
-    JcoReflection.invoke(imports, "setValue", "CACHE_RESULTS", "X");
+    JcoReflection.invoke(imports, "setValue", "CACHE_RESULTS", cacheResults ? "X" : " ");
     execute(function);
     assertNoBapiErrors(function);
 
@@ -875,6 +874,28 @@ final class JcoSapAdapter implements SapAdapter {
     String type = JcoReflection.string(record, "TYPE");
     if ("E".equals(type) || "A".equals(type) || "X".equals(type)) {
       throw new IllegalStateException(prefix + ": " + JcoReflection.string(record, "MESSAGE"));
+    }
+  }
+
+  /**
+   * Runs one lifecycle BAPI and BAPI_TRANSACTION_COMMIT (or rollback) inside a stateful JCo context,
+   * so the commit always travels on the same connection as the change. Verified against A4H/250
+   * for lock, unlock and password reset on 2026-10-26.
+   */
+  private void executeAndCommit(Object function, String errorPrefix) {
+    JcoReflection.invokeStatic(JCO_CONTEXT, "begin", destination);
+    try {
+      try {
+        execute(function);
+        assertNoBapiErrors(function, errorPrefix);
+        commit();
+      } catch (RuntimeException error) {
+        rollback();
+        throw error;
+      }
+    } finally {
+      try { JcoReflection.invokeStatic(JCO_CONTEXT, "end", destination); }
+      catch (RuntimeException ignored) { /* The connection is returned to the pool by JCo. */ }
     }
   }
 
