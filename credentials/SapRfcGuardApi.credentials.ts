@@ -77,12 +77,12 @@ export class SapRfcGuardApi implements ICredentialType {
 			required: true,
 		},
 		{
-			displayName: 'Allow Communication-User Creation',
+			displayName: 'Allow Governed User Administration',
 			name: 'allowUserCreation',
 			type: 'boolean',
 			default: false,
 			description:
-				'Whether this credential can create a Communication user through the dedicated provisioning sidecar',
+				'Whether this credential can create, reset the password of, lock or unlock prefix-restricted users through the dedicated provisioning sidecar',
 			displayOptions: { show: { sidecarMode: ['userProvisioning'] } },
 		},
 		{

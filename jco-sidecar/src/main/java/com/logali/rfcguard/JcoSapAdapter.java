@@ -16,6 +16,10 @@ final class JcoSapAdapter implements SapAdapter {
   private static final String USER_LIST_BAPI = "BAPI_USER_GETLIST";
   private static final String USER_DETAIL_BAPI = "BAPI_USER_GET_DETAIL";
   private static final String USER_CREATE_BAPI = "BAPI_USER_CREATE1";
+  private static final String USER_CHANGE_BAPI = "BAPI_USER_CHANGE";
+  private static final String USER_LOCK_BAPI = "BAPI_USER_LOCK";
+  private static final String USER_UNLOCK_BAPI = "BAPI_USER_UNLOCK";
+  private static final String USER_EXISTENCE_BAPI = "BAPI_USER_EXISTENCE_CHECK";
   private static final String COMPANY_CODE_LIST_BAPI = "BAPI_COMPANYCODE_GETLIST";
   private static final String COMPANY_CODE_DETAIL_BAPI = "BAPI_COMPANYCODE_GETDETAIL";
   private static final String MATERIAL_LIST_BAPI = "BAPI_MATERIAL_GETLIST";
@@ -712,6 +716,85 @@ final class JcoSapAdapter implements SapAdapter {
     result.put("profilesAssigned", 0);
     result.put("passwordReturned", false);
     return result;
+  }
+
+  @Override public Map<String, Object> manageUser(String operation, Map<String, Object> parameters) {
+    assertConfiguredClient(parameters);
+    if (!configuration.userCreationEnabled() || !"user-provisioning".equals(configuration.mode())) {
+      throw new IllegalArgumentException("USER_CREATION_DISABLED");
+    }
+    String username = governedUsername(parameters.get("username"), configuration.userCreatePrefix());
+    if (!exists(username)) throw new IllegalArgumentException("USER_NOT_FOUND");
+    String bapi = switch (operation) {
+      case "resetSu01UserPassword" -> USER_CHANGE_BAPI;
+      case "lockSu01User" -> USER_LOCK_BAPI;
+      case "unlockSu01User" -> USER_UNLOCK_BAPI;
+      default -> throw new IllegalArgumentException("OPERATION_NOT_ALLOWED");
+    };
+    Object function = function(bapi);
+    Object imports = JcoReflection.invoke(function, "getImportParameterList");
+    JcoReflection.invoke(imports, "setValue", "USERNAME", username);
+    if ("resetSu01UserPassword".equals(operation)) {
+      // The new initial password is the operated secret of this sidecar; it never enters n8n.
+      Object password = JcoReflection.invoke(imports, "getStructure", "PASSWORD");
+      Object passwordX = JcoReflection.invoke(imports, "getStructure", "PASSWORDX");
+      JcoReflection.invoke(password, "setValue", "BAPIPWD", configuration.newUserInitialPassword());
+      JcoReflection.invoke(passwordX, "setValue", "BAPIPWD", "X");
+    }
+    try {
+      execute(function);
+      assertNoBapiErrors(function, "SAP rejected the governed user change");
+      commit();
+    } catch (RuntimeException error) {
+      rollback();
+      throw error;
+    }
+
+    UserRecord after = readDetail(username, configuration.inactiveDays());
+    boolean verified = switch (operation) {
+      case "lockSu01User" -> !"Unlocked".equals(after.lockStatus());
+      case "unlockSu01User" -> "Unlocked".equals(after.lockStatus())
+          || "NoPassword".equals(after.lockStatus());
+      default -> username.equals(after.username());
+    };
+    var result = new LinkedHashMap<String, Object>();
+    result.put("username", username);
+    result.put("action", switch (operation) {
+      case "resetSu01UserPassword" -> "passwordReset";
+      case "lockSu01User" -> "locked";
+      default -> "unlocked";
+    });
+    result.put("verified", verified);
+    result.put("lockStatus", after.lockStatus());
+    result.put("accountStatus", after.accountStatus());
+    if ("resetSu01UserPassword".equals(operation)) {
+      result.put("passwordState", "initial");
+      result.put("mustChangeAtNextLogon", true);
+    }
+    result.put("passwordReturned", false);
+    return result;
+  }
+
+  static String governedUsername(Object raw, String prefix) {
+    String username = string(raw).toUpperCase();
+    if (!username.matches("[A-Z0-9_]{1,12}") || !username.startsWith(prefix)) {
+      throw new IllegalArgumentException("USERNAME_PREFIX_INVALID");
+    }
+    return username;
+  }
+
+  private boolean exists(String username) {
+    Object function = function(USER_EXISTENCE_BAPI);
+    JcoReflection.invoke(JcoReflection.invoke(function, "getImportParameterList"),
+        "setValue", "USERNAME", username);
+    execute(function);
+    Object returns = JcoReflection.invoke(
+        JcoReflection.invoke(function, "getExportParameterList"), "getStructure", "RETURN");
+    String id = JcoReflection.string(returns, "ID");
+    String number = JcoReflection.string(returns, "NUMBER");
+    if ("01".equals(id) && ("088".equals(number) || "88".equals(number))) return true;
+    if ("01".equals(id) && "124".equals(number)) return false;
+    throw new IllegalStateException("SAP user existence check returned an unexpected message");
   }
 
   private UserRecord readDetail(String username, int inactiveDays) {

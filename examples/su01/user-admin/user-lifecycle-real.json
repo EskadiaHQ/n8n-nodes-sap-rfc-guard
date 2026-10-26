@@ -1,0 +1,161 @@
+{
+  "id": "SapRfcUserLifecycleReal",
+  "name": "415 · RFC Guard · REAL SAP · User Lifecycle (create, lock, unlock, reset)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {},
+      "position": [
+        0,
+        0
+      ],
+      "id": "7fda82b7-4377-5227-b5f7-ba0fa7b59b6b",
+      "name": "When clicking ‘Execute workflow’",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "resource": "userAdministration",
+        "operation": "createCommunicationUser",
+        "username": "N8N_TST_1026",
+        "firstName": "Ana",
+        "lastName": "Demo n8n",
+        "email": "",
+        "validDays": 1,
+        "writeConfirmation": "CREATE N8N_TST_1026",
+        "correlationId": "n8n-user-lifecycle-20261026-create"
+      },
+      "position": [
+        300,
+        0
+      ],
+      "id": "d3f49563-2072-5b16-8ee4-89a8f7e45467",
+      "name": "1 · Create Communication User",
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "resource": "userAdministration",
+        "operation": "lockUser",
+        "username": "N8N_TST_1026",
+        "writeConfirmation": "LOCK N8N_TST_1026",
+        "correlationId": "n8n-user-lifecycle-20261026-lock"
+      },
+      "position": [
+        600,
+        0
+      ],
+      "id": "4924e670-186d-5c28-bed5-2a925a605af8",
+      "name": "2 · Lock User",
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "resource": "userAdministration",
+        "operation": "unlockUser",
+        "username": "N8N_TST_1026",
+        "writeConfirmation": "UNLOCK N8N_TST_1026",
+        "correlationId": "n8n-user-lifecycle-20261026-unlock"
+      },
+      "position": [
+        900,
+        0
+      ],
+      "id": "a1c5e0c6-1b09-5861-91a1-cbc518a38a57",
+      "name": "3 · Unlock User",
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "resource": "userAdministration",
+        "operation": "resetPassword",
+        "username": "N8N_TST_1026",
+        "writeConfirmation": "RESET N8N_TST_1026",
+        "correlationId": "n8n-user-lifecycle-20261026-reset"
+      },
+      "position": [
+        1200,
+        0
+      ],
+      "id": "44ab7eda-0d68-5ad7-9eba-3a09ecc9ace9",
+      "name": "4 · Reset Password",
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Destructive test: changes one real SAP user\n\nSame lifecycle against the operated provisioning sidecar (`RFC_GUARD_MODE=user-provisioning`). The sidecar only accepts usernames with its configured prefix, assigns no roles or profiles and keeps the initial password server-side.\n\nKeep inactive, unpublished and unavailable as an AI tool. Change the username and every confirmation before any run.",
+        "height": 300,
+        "width": 620
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        -340
+      ],
+      "id": "486a147e-79f7-55ab-ae8e-9b92ce68d3cb",
+      "name": "Governed User Administration"
+    }
+  ],
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "1 · Create Communication User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1 · Create Communication User": {
+      "main": [
+        [
+          {
+            "node": "2 · Lock User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2 · Lock User": {
+      "main": [
+        [
+          {
+            "node": "3 · Unlock User",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3 · Unlock User": {
+      "main": [
+        [
+          {
+            "node": "4 · Reset Password",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -5,6 +5,25 @@ import type { SapRfcGuardCredentials } from './types';
 const OPERATION_ID = /^[a-z][a-zA-Z0-9.-]{0,63}$/;
 const DATA_FIELD = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
 export const USER_CREATE_OPERATION = 'createSu01CommunicationUser';
+export const USER_LOGON_RESET_OPERATION = 'resetSu01UserPassword';
+export const USER_LOCK_OPERATION = 'lockSu01User';
+export const USER_UNLOCK_OPERATION = 'unlockSu01User';
+
+/** Governed write aliases served only by a dedicated user-provisioning sidecar. */
+export const USER_WRITE_OPERATIONS: ReadonlyMap<string, { verb: string; nodeOperation: string }> =
+	new Map([
+		[USER_CREATE_OPERATION, { verb: 'CREATE', nodeOperation: 'createCommunicationUser' }],
+		[USER_LOGON_RESET_OPERATION, { verb: 'RESET', nodeOperation: 'resetPassword' }],
+		[USER_LOCK_OPERATION, { verb: 'LOCK', nodeOperation: 'lockUser' }],
+		[USER_UNLOCK_OPERATION, { verb: 'UNLOCK', nodeOperation: 'unlockUser' }],
+	]);
+
+export function userWriteOperationForNodeOperation(nodeOperation: string): string {
+	for (const [alias, definition] of USER_WRITE_OPERATIONS) {
+		if (definition.nodeOperation === nodeOperation) return alias;
+	}
+	throw new OperationalError(`Unsupported user administration operation ${nodeOperation}.`);
+}
 
 export function parseAllowedOperations(value: string): Set<string> {
 	const operations = String(value ?? '')
@@ -134,8 +153,8 @@ export function validateGovernanceConfiguration(credentials: SapRfcGuardCredenti
 		}
 	}
 	const mode = credentials.sidecarMode ?? 'readOnly';
-	if (mode === 'readOnly' && allowed.has(USER_CREATE_OPERATION)) {
-		throw new OperationalError('A read-only credential cannot allow a user-creation operation.');
+	if (mode === 'readOnly' && [...allowed].some((operation) => USER_WRITE_OPERATIONS.has(operation))) {
+		throw new OperationalError('A read-only credential cannot allow a user-administration operation.');
 	}
 	if (mode === 'userProvisioning') {
 		if (credentials.allowUserCreation !== true) {
@@ -144,9 +163,9 @@ export function validateGovernanceConfiguration(credentials: SapRfcGuardCredenti
 		if (credentials.allowAiTool === true) {
 			throw new OperationalError('User-provisioning credentials cannot be enabled for AI tools.');
 		}
-		if (allowed.size !== 1 || !allowed.has(USER_CREATE_OPERATION)) {
+		if ([...allowed].some((operation) => !USER_WRITE_OPERATIONS.has(operation))) {
 			throw new OperationalError(
-				'User-provisioning credentials may allow only createSu01CommunicationUser.',
+				`User-provisioning credentials may allow only ${[...USER_WRITE_OPERATIONS.keys()].join(', ')}.`,
 			);
 		}
 	}
@@ -166,16 +185,28 @@ export function assertProvisioningCredential(credentials: SapRfcGuardCredentials
 	}
 }
 
-export function assertCreateConfirmation(username: string, confirmation: string): string {
+export function assertWriteConfirmation(
+	operation: string,
+	username: string,
+	confirmation: string,
+): { username: string; confirmation: string } {
+	const definition = USER_WRITE_OPERATIONS.get(operation);
+	if (!definition) {
+		throw new OperationalError(`Operation ${operation} is not a governed user-administration alias.`);
+	}
 	const normalizedUsername = username.trim().toUpperCase();
 	if (!/^[A-Z0-9_]{1,12}$/.test(normalizedUsername)) {
 		throw new OperationalError('SAP username must contain 1-12 uppercase letters, numbers, or underscores.');
 	}
-	const expected = `CREATE ${normalizedUsername}`;
+	const expected = `${definition.verb} ${normalizedUsername}`;
 	if (confirmation.trim().toUpperCase() !== expected) {
 		throw new OperationalError(`Confirmation must be exactly ${expected}.`);
 	}
-	return normalizedUsername;
+	return { username: normalizedUsername, confirmation: expected };
+}
+
+export function assertCreateConfirmation(username: string, confirmation: string): string {
+	return assertWriteConfirmation(USER_CREATE_OPERATION, username, confirmation).username;
 }
 
 export function parseParametersJson(value: string): Record<string, unknown> {

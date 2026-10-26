@@ -23,14 +23,15 @@ import {
 } from './client';
 import {
 	allowedDataFieldsForOperation,
-	assertCreateConfirmation,
 	assertOperationAllowed,
 	assertOperationId,
 	assertProvisioningCredential,
+	assertWriteConfirmation,
 	enforceSerializedByteLimit,
 	parseAllowedOperations,
 	parseDataFieldPolicies,
 	parseParametersJson,
+	userWriteOperationForNodeOperation,
 	validateGovernanceConfiguration,
 	USER_CREATE_OPERATION,
 } from './governance';
@@ -81,7 +82,7 @@ export class SapRfcGuard implements INodeType {
 		version: 1,
 		subtitle: '={{$parameter["resource"] + ": " + $parameter["operation"]}}',
 		description:
-			'Run governed SAP RFC/BAPI reads or explicitly confirmed user provisioning through isolated HTTPS sidecars',
+			'Run governed SAP RFC/BAPI reads or explicitly confirmed user administration through isolated HTTPS sidecars',
 		usableAsTool: {
 			replacements: {
 				description:
@@ -132,6 +133,25 @@ export class SapRfcGuard implements INodeType {
 						action: 'Create a governed SAP communication user',
 						description:
 							'Creates one prefix-restricted Communication user without roles or profiles',
+					},
+					{
+						name: 'Lock User',
+						value: 'lockUser',
+						action: 'Lock a governed SAP user',
+						description: 'Locks one prefix-restricted user (administrator lock) and reads the lock back',
+					},
+					{
+						name: 'Reset Password',
+						value: 'resetPassword',
+						action: 'Reset the password of a governed SAP user',
+						description:
+							'Sets the sidecar-held initial password; the user must change it at next logon and n8n never sees it',
+					},
+					{
+						name: 'Unlock User',
+						value: 'unlockUser',
+						action: 'Unlock a governed SAP user',
+						description: 'Removes the administrator or failed-logon lock of one prefix-restricted user',
 					},
 				],
 				default: 'createCommunicationUser',
@@ -689,7 +709,9 @@ export class SapRfcGuard implements INodeType {
 				type: 'string',
 				default: 'n8n',
 				required: true,
-				displayOptions: { show: { resource: ['userAdministration'] } },
+				displayOptions: {
+					show: { resource: ['userAdministration'], operation: ['createCommunicationUser'] },
+				},
 			},
 			{
 				displayName: 'Last Name',
@@ -697,7 +719,9 @@ export class SapRfcGuard implements INodeType {
 				type: 'string',
 				default: 'Demo User',
 				required: true,
-				displayOptions: { show: { resource: ['userAdministration'] } },
+				displayOptions: {
+					show: { resource: ['userAdministration'], operation: ['createCommunicationUser'] },
+				},
 			},
 			{
 				displayName: 'Email',
@@ -705,7 +729,9 @@ export class SapRfcGuard implements INodeType {
 				type: 'string',
 				default: '',
 				placeholder: 'demo@example.invalid',
-				displayOptions: { show: { resource: ['userAdministration'] } },
+				displayOptions: {
+					show: { resource: ['userAdministration'], operation: ['createCommunicationUser'] },
+				},
 			},
 			{
 				displayName: 'Validity (Days)',
@@ -714,7 +740,9 @@ export class SapRfcGuard implements INodeType {
 				typeOptions: { minValue: 1, maxValue: 7 },
 				default: 1,
 				description: 'Maximum validity is also constrained by the provisioning sidecar',
-				displayOptions: { show: { resource: ['userAdministration'] } },
+				displayOptions: {
+					show: { resource: ['userAdministration'], operation: ['createCommunicationUser'] },
+				},
 			},
 			{
 				displayName: 'Confirmation',
@@ -722,7 +750,8 @@ export class SapRfcGuard implements INodeType {
 				type: 'string',
 				default: '',
 				placeholder: 'CREATE N8N_DEMO_01',
-				description: 'Enter CREATE followed by the exact target username',
+				description:
+					'Enter CREATE, RESET, LOCK or UNLOCK (matching the operation) followed by the exact target username',
 				required: true,
 				displayOptions: { show: { resource: ['userAdministration'] } },
 			},
@@ -933,22 +962,28 @@ export class SapRfcGuard implements INodeType {
 
 				if (resource === 'userAdministration') {
 					assertProvisioningCredential(credentials);
-					const username = assertCreateConfirmation(
+					const operation = userWriteOperationForNodeOperation(
+						this.getNodeParameter('operation', itemIndex, 'createCommunicationUser') as string,
+					);
+					const { username, confirmation } = assertWriteConfirmation(
+						operation,
 						this.getNodeParameter('username', itemIndex) as string,
 						this.getNodeParameter('writeConfirmation', itemIndex) as string,
 					);
-					const operation = USER_CREATE_OPERATION;
 					const allowedOperations = parseAllowedOperations(credentials.allowedOperations);
 					assertOperationAllowed(operation, allowedOperations);
 					const fieldPolicies = parseDataFieldPolicies(credentials.dataFieldPoliciesJson);
 					const allowedFields = allowedDataFieldsForOperation(operation, fieldPolicies);
-					const parameters = {
-						username,
-						firstName: String(this.getNodeParameter('firstName', itemIndex)).trim(),
-						lastName: String(this.getNodeParameter('lastName', itemIndex)).trim(),
-						email: String(this.getNodeParameter('email', itemIndex, '')).trim(),
-						validDays: this.getNodeParameter('validDays', itemIndex, 1) as number,
-					};
+					const parameters: Record<string, unknown> =
+						operation === USER_CREATE_OPERATION
+							? {
+									username,
+									firstName: String(this.getNodeParameter('firstName', itemIndex)).trim(),
+									lastName: String(this.getNodeParameter('lastName', itemIndex)).trim(),
+									email: String(this.getNodeParameter('email', itemIndex, '')).trim(),
+									validDays: this.getNodeParameter('validDays', itemIndex, 1) as number,
+								}
+							: { username };
 					enforceSerializedByteLimit(
 						parameters,
 						Number(credentials.maxRequestBytes),
@@ -957,7 +992,6 @@ export class SapRfcGuard implements INodeType {
 					const traceId = correlationId(
 						this.getNodeParameter('correlationId', itemIndex, '') as string,
 					);
-					const confirmation = `CREATE ${username}`;
 					const response = await executeApprovedWriteOperation(
 						credentials,
 						httpRequest,

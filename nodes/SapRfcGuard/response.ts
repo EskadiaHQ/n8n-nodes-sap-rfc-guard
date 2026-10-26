@@ -87,8 +87,14 @@ export function sanitizeProvisioningHealthResponse(value: unknown): Record<strin
 	const operations = Array.isArray(rawOperations)
 		? rawOperations.map(String).filter((operation) => /^[a-z][a-zA-Z0-9.-]{0,63}$/.test(operation))
 		: [];
-	if (!operations.includes('createSu01CommunicationUser')) {
-		throw new OperationalError('The sidecar does not advertise the governed user-creation alias.');
+	const writeAliases = [
+		'createSu01CommunicationUser',
+		'resetSu01UserPassword',
+		'lockSu01User',
+		'unlockSu01User',
+	];
+	if (!operations.some((operation) => writeAliases.includes(operation))) {
+		throw new OperationalError('The sidecar does not advertise any governed user-administration alias.');
 	}
 	const backend = safeBackend(response.backend);
 	return {

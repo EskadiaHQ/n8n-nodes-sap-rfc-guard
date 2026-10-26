@@ -62,6 +62,19 @@ final class GuardServiceTest {
             "email", "not-an-email"))).getMessage());
   }
 
+  @Test void routesTheGovernedUserLifecycleChanges() {
+    var service = new GuardService(new StubAdapter());
+    for (String operation : List.of("resetSu01UserPassword", "lockSu01User", "unlockSu01User")) {
+      var result = service.execute(operation, Map.of("username", "N8N_DEMO_01"));
+      assertEquals(operation, result.getFirst().get("operation"));
+      assertEquals("USERNAME_REQUIRED", assertThrows(IllegalArgumentException.class,
+          () -> service.execute(operation, Map.of())).getMessage());
+      assertEquals("PARAMETER_NOT_ALLOWED", assertThrows(IllegalArgumentException.class,
+          () -> service.execute(operation, Map.of("username", "N8N_DEMO_01", "password", "x")))
+          .getMessage());
+    }
+  }
+
   @Test void routesTheFixedBusinessBapiAliases() {
     var service = new GuardService(new StubAdapter());
     assertEquals("listCompanyCodes", service.execute("listCompanyCodes", Map.of()).getFirst().get("operation"));
@@ -151,6 +164,9 @@ final class GuardServiceTest {
     }
     @Override public Map<String, Object> createCommunicationUser(Map<String, Object> parameters) {
       return Map.of("username", parameters.get("username"), "created", true);
+    }
+    @Override public Map<String, Object> manageUser(String operation, Map<String, Object> parameters) {
+      return Map.of("username", parameters.get("username"), "operation", operation);
     }
     private UserRecord user(String username, String status, String reason) {
       return new UserRecord(username, "Dialog", "", "", "", "", "", "", "Unlocked", status, reason);

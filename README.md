@@ -164,6 +164,11 @@ listSu01Users, getSu01UserDetail
 - **User Administration / Create Communication User** calls the isolated provisioning sidecar
   after an exact `CREATE <username>` confirmation. It maps only to `BAPI_USER_CREATE1` and does
   not accept technical function names, roles, profiles or password input from a workflow.
+- **User Administration / Lock User**, **Unlock User** and **Reset Password** change one
+  prefix-restricted user through the same sidecar after `LOCK`, `UNLOCK` or `RESET <username>`.
+  They map to `BAPI_USER_LOCK`, `BAPI_USER_UNLOCK` and `BAPI_USER_CHANGE`, commit and read the user
+  back. The reset applies the sidecar-held initial password; n8n never sends or receives it.
+  See [`examples/su01/user-admin/`](examples/su01/user-admin/README.md).
 
 The visible operation description states which fixed BAPI is used, but the BAPI
 name is never editable. See [`docs/BAPI-VS-BADI.md`](docs/BAPI-VS-BADI.md) for

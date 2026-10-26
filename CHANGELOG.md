@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 - 2026-10-26
+
+- Add governed user lifecycle operations to **User Administration**: *Lock User*
+  (`lockSu01User` → `BAPI_USER_LOCK`), *Unlock User* (`unlockSu01User` →
+  `BAPI_USER_UNLOCK`) and *Reset Password* (`resetSu01UserPassword` →
+  `BAPI_USER_CHANGE` with `PASSWORD`/`PASSWORDX`). Each one commits, reads the user
+  back and requires its own exact confirmation (`LOCK`, `UNLOCK`, `RESET` + username).
+- The reset applies the provisioning sidecar's server-held initial password; SAP
+  forces a change at next logon and no password is sent to or returned by n8n.
+- Lifecycle changes reuse the provisioning sidecar's username prefix, so they cannot
+  reach users the guard did not provision; missing users fail with `USER_NOT_FOUND`.
+- User-provisioning credentials may now allow any subset of the four write aliases;
+  read-only credentials still reject every write alias.
+- Synthetic contract fixture: `CONTRACT_MODE=user-provisioning` serves the four
+  write aliases over in-memory users, plus contract and end-to-end tests that run
+  the published example workflow through the node.
+- New examples in `examples/su01/user-admin/` (synthetic and real, both inactive).
+
 ## 0.4.13 - 2026-08-23
 
 - Fail closed when a read-only or user-provisioning sidecar reports a degraded,

@@ -11,6 +11,14 @@ final class JcoSapAdapterPolicyTest {
     assertDoesNotThrow(() -> JcoSapAdapter.assertClientMatches("250", "250"));
   }
 
+  @Test void restrictsLifecycleChangesToThePrefixedGovernedUsers() {
+    assertEquals("N8N_DEMO_01", JcoSapAdapter.governedUsername("n8n_demo_01", "N8N_DEMO_"));
+    for (String forbidden : new String[] {"DDIC", "SAP*", "N8N_DEMO_TOO_LONG", "", "TRAINING_ADMIN"}) {
+      assertEquals("USERNAME_PREFIX_INVALID", assertThrows(IllegalArgumentException.class,
+          () -> JcoSapAdapter.governedUsername(forbidden, "N8N_DEMO_")).getMessage(), forbidden);
+    }
+  }
+
   @Test void rejectsAClientOutsideTheOperatedDestination() {
     var error = assertThrows(IllegalArgumentException.class,
         () -> JcoSapAdapter.assertClientMatches("100", "250"));

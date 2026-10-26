@@ -2,6 +2,9 @@ import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 
 const port = Number(process.env.PORT ?? 8080);
+// CONTRACT_MODE=user-provisioning starts a separate synthetic provisioning fixture (never both).
+const provisioningMode = process.env.CONTRACT_MODE === 'user-provisioning';
+const provisioningPrefix = process.env.PROVISIONING_PREFIX ?? 'N8N_DEMO_';
 const expectedToken = process.env.CONTRACT_TOKEN ?? 'RFC_GUARD_CONTRACT_FIXTURE';
 const maxBodyBytes = 64 * 1024;
 const operations = Object.freeze([
@@ -10,7 +13,30 @@ const operations = Object.freeze([
   'listSu01RiskAccounts',
   'summarizeSu01Accounts',
 ]);
-const operationSet = new Set(operations);
+const writeOperations = Object.freeze([
+  'createSu01CommunicationUser',
+  'resetSu01UserPassword',
+  'lockSu01User',
+  'unlockSu01User',
+]);
+const writeVerbs = Object.freeze({
+  createSu01CommunicationUser: 'CREATE',
+  resetSu01UserPassword: 'RESET',
+  lockSu01User: 'LOCK',
+  unlockSu01User: 'UNLOCK',
+});
+const writeParameters = Object.freeze({
+  createSu01CommunicationUser: new Set(['client', 'username', 'firstName', 'lastName', 'email', 'validDays']),
+  resetSu01UserPassword: new Set(['client', 'username']),
+  lockSu01User: new Set(['client', 'username']),
+  unlockSu01User: new Set(['client', 'username']),
+});
+const operationSet = new Set(provisioningMode ? writeOperations : operations);
+// Synthetic, in-memory SU01 accounts managed by the provisioning fixture. N8N_DEMO_00 exists from start.
+const managedUsers = new Map([[`${provisioningPrefix}00`, {
+  username: `${provisioningPrefix}00`, userType: 'Communication', lockStatus: 'Unlocked',
+  accountStatus: 'Active', passwordState: 'productive', validFrom: '2026-01-01', validTo: '2026-12-31',
+}]]);
 const expectedClient = process.env.SAP_CLIENT ?? '100';
 const allowedParameters = Object.freeze({
   listSu01Users: new Set(['client', 'maxRows', 'inactiveDays', 'userType', 'accountStatus']),
@@ -214,6 +240,72 @@ function summarizeAccounts(parameters = {}) {
     .map(([value, count]) => ({ dimension, value, count }));
 }
 
+function governedUsername(parameters) {
+  const username = typeof parameters.username === 'string' ? parameters.username.trim().toUpperCase() : '';
+  if (!username) throw new Error('USERNAME_REQUIRED');
+  if (!/^[A-Z0-9_]{1,12}$/.test(username) || !username.startsWith(provisioningPrefix)) {
+    throw new Error('USERNAME_PREFIX_INVALID');
+  }
+  return username;
+}
+
+function validateWriteParameters(operation, parameters) {
+  if (!parameters || typeof parameters !== 'object' || Array.isArray(parameters)) {
+    throw new Error('PARAMETERS_INVALID');
+  }
+  if (Object.keys(parameters).some((key) => !writeParameters[operation].has(key))) {
+    throw new Error('PARAMETER_NOT_ALLOWED');
+  }
+  if (parameters.client !== undefined && String(parameters.client) !== expectedClient) {
+    throw new Error('CLIENT_MISMATCH');
+  }
+  return governedUsername(parameters);
+}
+
+function executeWriteOperation(operation, parameters) {
+  const username = validateWriteParameters(operation, parameters);
+  const today = new Date().toISOString().slice(0, 10);
+  if (operation === 'createSu01CommunicationUser') {
+    if (managedUsers.has(username)) throw new Error('USER_ALREADY_EXISTS');
+    const validDays = integerParameter(parameters, 'validDays', 1, 1, 7, 'VALID_DAYS_INVALID');
+    const validTo = new Date(Date.now() + (validDays - 1) * 86_400_000).toISOString().slice(0, 10);
+    for (const field of ['firstName', 'lastName']) {
+      const value = String(parameters[field] ?? '').trim();
+      if (value.length < 1 || value.length > 40) throw new Error(`${field === 'firstName' ? 'FIRST' : 'LAST'}_NAME_INVALID`);
+    }
+    managedUsers.set(username, {
+      username, userType: 'Communication', lockStatus: 'Unlocked', accountStatus: 'Active',
+      passwordState: 'initial', validFrom: today, validTo,
+    });
+    return {
+      username, created: true, verified: true, userType: 'Communication', validFrom: today, validTo,
+      accountStatus: 'Active', rolesAssigned: 0, profilesAssigned: 0, passwordReturned: false,
+    };
+  }
+  const user = managedUsers.get(username);
+  if (!user) throw new Error('USER_NOT_FOUND');
+  let action;
+  if (operation === 'resetSu01UserPassword') {
+    user.passwordState = 'initial';
+    action = 'passwordReset';
+  } else if (operation === 'lockSu01User') {
+    user.lockStatus = 'LockedByAdministrator';
+    user.accountStatus = 'Locked';
+    action = 'locked';
+  } else {
+    user.lockStatus = 'Unlocked';
+    user.accountStatus = 'Active';
+    action = 'unlocked';
+  }
+  return {
+    username, action, verified: true, lockStatus: user.lockStatus, accountStatus: user.accountStatus,
+    ...(operation === 'resetSu01UserPassword'
+      ? { passwordState: 'initial', mustChangeAtNextLogon: true }
+      : {}),
+    passwordReturned: false,
+  };
+}
+
 function executeOperation(operation, parameters) {
   switch (operation) {
     case 'listSu01Users':
@@ -244,12 +336,13 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/v1/health') {
     json(res, 200, {
       status: 'ok',
-      service: 'sap-rfc-guard-contract-fixture',
-      version: '1.2.0',
-      capabilities: {
-        readOnly: true,
-        operations,
-      },
+      service: provisioningMode
+        ? 'sap-rfc-guard-contract-fixture-provisioning'
+        : 'sap-rfc-guard-contract-fixture',
+      version: '1.3.0',
+      capabilities: provisioningMode
+        ? { readOnly: false, writeEnabled: true, operations: writeOperations }
+        : { readOnly: true, operations },
       correlationId,
     });
     return;
@@ -269,6 +362,41 @@ const server = http.createServer(async (req, res) => {
 
   try {
     const body = await readJson(req);
+
+    if (provisioningMode) {
+      const parameters = body.parameters ?? {};
+      const username = typeof parameters.username === 'string' ? parameters.username.trim().toUpperCase() : '';
+      const expected = `${writeVerbs[routeOperation]} ${username}`;
+      if (body.operation !== routeOperation
+        || body.context?.write !== true
+        || body.context?.readOnly !== false
+        || req.headers['x-rfc-guard-mode'] !== 'user-provisioning'
+        || !username
+        || body.context?.confirmation !== expected) {
+        json(res, 403, {
+          error: 'WRITE_CONFIRMATION_REQUIRED',
+          message: 'A matching explicit confirmation is required for this user change.',
+          correlationId,
+        });
+        return;
+      }
+      const data = executeWriteOperation(routeOperation, parameters);
+      json(res, 200, {
+        operation: routeOperation,
+        correlationId,
+        data,
+        meta: {
+          source: 'contract-fixture',
+          syntheticData: true,
+          readOnly: false,
+          write: true,
+          operation: routeOperation,
+          rowCount: 1,
+          correlationId,
+        },
+      });
+      return;
+    }
 
     if (body.operation !== routeOperation || body.context?.readOnly !== true) {
       json(res, 403, {
@@ -305,6 +433,10 @@ const server = http.createServer(async (req, res) => {
         ? 'The request exceeds 64 KiB.'
         : code === 'USERNAME_REQUIRED'
           ? 'The username parameter is required.'
+          : code === 'USER_NOT_FOUND'
+            ? 'The governed synthetic user does not exist.'
+            : code === 'USERNAME_PREFIX_INVALID'
+              ? 'The username does not match the configured provisioning prefix.'
           : code === 'INVALID_JSON'
             ? 'The request body must be valid JSON.'
             : 'The request parameters do not satisfy the governed operation contract.',

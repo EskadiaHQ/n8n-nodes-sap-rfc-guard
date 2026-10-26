@@ -88,7 +88,7 @@ final class HttpApi implements AutoCloseable {
       boolean provisioning = "user-provisioning".equals(configuration.mode());
       response(exchange, 200, Map.of(
           "status", "ok", "service", provisioning
-              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.4.5",
+              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.5.0",
           "backend", backendMap(backend),
           "capabilities", Map.of(
               "readOnly", !provisioning,
@@ -133,7 +133,7 @@ final class HttpApi implements AutoCloseable {
       if (writeOperation && (!Boolean.TRUE.equals(context.get("write"))
           || !Boolean.FALSE.equals(context.get("readOnly"))
           || !"user-provisioning".equals(exchange.getRequestHeaders().getFirst("X-RFC-Guard-Mode"))
-          || !expectedConfirmation(parameters).equals(context.get("confirmation")))) {
+          || !expectedConfirmation(operation, parameters).equals(context.get("confirmation")))) {
         error(exchange, 403, "WRITE_CONFIRMATION_REQUIRED", correlationId); return;
       }
       var data = withinTimeout(() -> service.execute(operation, parameters));
@@ -216,16 +216,26 @@ final class HttpApi implements AutoCloseable {
     return candidate != null && candidate.matches("[A-Z][A-Z0-9_]{2,64}") ? candidate : fallback;
   }
 
-  private static String expectedConfirmation(Map<String, Object> parameters) {
+  /** Exact, operation-specific confirmation: CREATE, RESET, LOCK or UNLOCK followed by the username. */
+  static String expectedConfirmation(String operation, Map<String, Object> parameters) {
     Object username = parameters.get("username");
-    return username == null ? "" : "CREATE " + username.toString().trim().toUpperCase();
+    if (username == null) return "";
+    String verb = switch (operation) {
+      case "createSu01CommunicationUser" -> "CREATE";
+      case "resetSu01UserPassword" -> "RESET";
+      case "lockSu01User" -> "LOCK";
+      case "unlockSu01User" -> "UNLOCK";
+      default -> "";
+    };
+    return verb.isEmpty() ? "" : verb + " " + username.toString().trim().toUpperCase();
   }
 
   private static String message(String code) {
     return switch (code) {
       case "UNAUTHORIZED" -> "A valid sidecar credential is required.";
       case "READ_ONLY_CONTRACT_REQUIRED" -> "A matching read-only business operation contract is required.";
-      case "WRITE_CONFIRMATION_REQUIRED" -> "A matching explicit confirmation is required for this user creation.";
+      case "WRITE_CONFIRMATION_REQUIRED" -> "A matching explicit confirmation is required for this user change.";
+      case "USER_NOT_FOUND" -> "The governed SAP user does not exist.";
       case "OPERATION_CONTRACT_REQUIRED" -> "The operation body must match the governed route.";
       case "REQUEST_TOO_LARGE" -> "The request exceeds 64 KiB.";
       case "USERNAME_REQUIRED" -> "The username parameter is required.";
@@ -274,8 +284,8 @@ final class HttpApi implements AutoCloseable {
       case "SAP_READ_TIMEOUT" -> "SAP did not complete the governed read within the configured limit.";
       case "REQUEST_INTERRUPTED" -> "The governed read was interrupted before completion.";
       case "SAP_READ_FAILED" -> "SAP could not complete the governed read.";
-      case "SAP_WRITE_TIMEOUT" -> "SAP did not complete the governed user creation within the configured limit.";
-      case "SAP_WRITE_FAILED" -> "SAP could not complete the governed user creation.";
+      case "SAP_WRITE_TIMEOUT" -> "SAP did not complete the governed user change within the configured limit.";
+      case "SAP_WRITE_FAILED" -> "SAP could not complete the governed user change.";
       default -> "The requested operation is not permitted.";
     };
   }
