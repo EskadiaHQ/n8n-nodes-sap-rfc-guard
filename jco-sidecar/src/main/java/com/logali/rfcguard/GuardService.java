@@ -19,7 +19,10 @@ final class GuardService {
       "listIncomingInvoices", "getIncomingInvoiceDetail", "detectPotentialDuplicateInvoices",
       "getVendorOpenItems", "getCustomerOpenItems", "summarizeOverdueItems",
       "getVendorDetail", "getCustomerDetail");
-  static final Set<String> WRITE_OPERATIONS = Set.of("createSu01CommunicationUser");
+  static final Set<String> USER_LIFECYCLE_OPERATIONS = Set.of(
+      "resetSu01UserPassword", "lockSu01User", "unlockSu01User");
+  static final Set<String> WRITE_OPERATIONS = Set.of(
+      "createSu01CommunicationUser", "resetSu01UserPassword", "lockSu01User", "unlockSu01User");
   private static final Map<String, Set<String>> PARAMETERS = Map.ofEntries(
       Map.entry("listSu01Users", Set.of("client", "maxRows", "inactiveDays", "userType", "accountStatus")),
       Map.entry("getSu01UserDetail", Set.of("client", "username")),
@@ -50,7 +53,10 @@ final class GuardService {
       Map.entry("getVendorDetail", Set.of("client", "vendor", "companyCode")),
       Map.entry("getCustomerDetail", Set.of("client", "customer", "companyCode")),
       Map.entry("createSu01CommunicationUser", Set.of(
-          "client", "username", "firstName", "lastName", "email", "validDays")));
+          "client", "username", "firstName", "lastName", "email", "validDays")),
+      Map.entry("resetSu01UserPassword", Set.of("client", "username")),
+      Map.entry("lockSu01User", Set.of("client", "username")),
+      Map.entry("unlockSu01User", Set.of("client", "username")));
   private static final Set<String> USER_TYPES = Set.of(
       "Dialog", "System", "Communication", "Reference", "Service");
   private static final Set<String> ACCOUNT_STATUSES = Set.of(
@@ -74,6 +80,8 @@ final class GuardService {
           "getVendorDetail", "getCustomerDetail" ->
           adapter.executeBusinessRead(operation, parameters);
       case "createSu01CommunicationUser" -> List.of(adapter.createCommunicationUser(parameters));
+      case "resetSu01UserPassword", "lockSu01User", "unlockSu01User" ->
+          List.of(adapter.manageUser(operation, parameters));
       default -> throw new IllegalArgumentException("OPERATION_NOT_ALLOWED");
     };
   }
@@ -104,7 +112,9 @@ final class GuardService {
     if (dimension != null && !Set.of("accountStatus", "userType").contains(dimension.toString())) {
       throw new IllegalArgumentException("DIMENSION_INVALID");
     }
-    if ("getSu01UserDetail".equals(operation)) requiredUsername(parameters);
+    if ("getSu01UserDetail".equals(operation) || USER_LIFECYCLE_OPERATIONS.contains(operation)) {
+      requiredUsername(parameters);
+    }
     if ("getCompanyCodeDetail".equals(operation)) {
       requiredPattern(parameters, "companyCode", "[A-Za-z0-9]{4}", "COMPANY_CODE_INVALID");
     }

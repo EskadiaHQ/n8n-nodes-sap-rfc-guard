@@ -217,5 +217,24 @@ describe('sidecar response governance', () => {
 				}),
 			/did not report a healthy status/,
 		);
+		assert.deepEqual(
+			sanitizeProvisioningHealthResponse({
+				status: 'ok',
+				capabilities: {
+					readOnly: false,
+					writeEnabled: true,
+					operations: ['resetSu01UserPassword', 'lockSu01User', 'unlockSu01User'],
+				},
+			}).operations,
+			['resetSu01UserPassword', 'lockSu01User', 'unlockSu01User'],
+		);
+		assert.throws(
+			() =>
+				sanitizeProvisioningHealthResponse({
+					status: 'ok',
+					capabilities: { readOnly: false, writeEnabled: true, operations: ['listSu01Users'] },
+				}),
+			/does not advertise any governed user-administration alias/,
+		);
 	});
 });

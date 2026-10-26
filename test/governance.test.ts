@@ -5,13 +5,18 @@ import {
 	allowedDataFieldsForOperation,
 	assertCreateConfirmation,
 	assertOperationAllowed,
+	assertWriteConfirmation,
 	assertOperationId,
 	normalizeBaseUrl,
 	parseAllowedOperations,
 	parseDataFieldPolicies,
 	parseParametersJson,
+	userWriteOperationForNodeOperation,
 	validateGovernanceConfiguration,
 	USER_CREATE_OPERATION,
+	USER_LOCK_OPERATION,
+	USER_LOGON_RESET_OPERATION,
+	USER_UNLOCK_OPERATION,
 } from '../nodes/SapRfcGuard/governance';
 
 const credentials = {
@@ -69,6 +74,57 @@ describe('operation governance', () => {
 			() => assertCreateConfirmation('N8N_DEMO_01', 'CREATE OTHER_USER'),
 			/Confirmation must be exactly/,
 		);
+	});
+
+	it('allows the lifecycle aliases only on an opted-in provisioning credential', () => {
+		const lifecycle = [USER_LOGON_RESET_OPERATION, USER_LOCK_OPERATION, USER_UNLOCK_OPERATION];
+		const provisioning = {
+			...credentials,
+			sidecarMode: 'userProvisioning' as const,
+			allowUserCreation: true,
+			allowedOperations: [USER_CREATE_OPERATION, ...lifecycle].join(', '),
+			dataFieldPoliciesJson: JSON.stringify(
+				Object.fromEntries(
+					[USER_CREATE_OPERATION, ...lifecycle].map((operation) => [operation, ['username']]),
+				),
+			),
+		};
+		assert.doesNotThrow(() => validateGovernanceConfiguration(provisioning));
+		assert.throws(
+			() =>
+				validateGovernanceConfiguration({
+					...credentials,
+					allowedOperations: 'listSu01Users, resetSu01UserPassword',
+					dataFieldPoliciesJson:
+						'{"listSu01Users":["username"],"resetSu01UserPassword":["username"]}',
+				}),
+			/read-only credential cannot allow a user-administration operation/,
+		);
+		assert.throws(
+			() =>
+				validateGovernanceConfiguration({
+					...provisioning,
+					allowedOperations: `${USER_LOCK_OPERATION}, listSu01Users`,
+					dataFieldPoliciesJson: `{"${USER_LOCK_OPERATION}":["username"],"listSu01Users":["username"]}`,
+				}),
+			/may allow only/,
+		);
+	});
+
+	it('binds each lifecycle change to its own verb and the exact username', () => {
+		assert.deepEqual(assertWriteConfirmation(USER_LOGON_RESET_OPERATION, 'n8n_demo_01', 'reset n8n_demo_01'), {
+			username: 'N8N_DEMO_01',
+			confirmation: 'RESET N8N_DEMO_01',
+		});
+		assert.equal(assertWriteConfirmation(USER_LOCK_OPERATION, 'N8N_DEMO_01', 'LOCK N8N_DEMO_01').confirmation, 'LOCK N8N_DEMO_01');
+		assert.equal(assertWriteConfirmation(USER_UNLOCK_OPERATION, 'N8N_DEMO_01', 'UNLOCK N8N_DEMO_01').confirmation, 'UNLOCK N8N_DEMO_01');
+		assert.throws(
+			() => assertWriteConfirmation(USER_LOGON_RESET_OPERATION, 'N8N_DEMO_01', 'CREATE N8N_DEMO_01'),
+			/Confirmation must be exactly RESET N8N_DEMO_01/,
+		);
+		assert.throws(() => assertWriteConfirmation('listSu01Users', 'N8N_DEMO_01', 'LIST N8N_DEMO_01'), /not a governed/);
+		assert.equal(userWriteOperationForNodeOperation('resetPassword'), USER_LOGON_RESET_OPERATION);
+		assert.throws(() => userWriteOperationForNodeOperation('deleteUser'), /Unsupported/);
 	});
 });
 

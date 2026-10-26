@@ -129,6 +129,43 @@ final class HttpApiTest {
         "{\"operation\":\"listSu01Users\",\"context\":{\"readOnly\":true}}", TOKEN).statusCode());
   }
 
+  @Test void requiresTheMatchingVerbForEachUserLifecycleChange() throws Exception {
+    api.close();
+    var configuration = new Configuration(port, TOKEN, "TEST", 50, 90, 30, "", "",
+        "user-provisioning", true, "N8N_DEMO_", "ZN8N_MOODLE", 7,
+        "Temporary-Only-123!", Map.of());
+    api = new HttpApi(configuration, new StubAdapter());
+    api.start();
+    var cases = Map.of("resetSu01UserPassword", "RESET", "lockSu01User", "LOCK",
+        "unlockSu01User", "UNLOCK");
+    for (var entry : cases.entrySet()) {
+      String path = "/v1/operations/" + entry.getKey() + "/execute";
+      String body = "{\"operation\":\"" + entry.getKey() + "\",\"parameters\":{\"username\":\"N8N_DEMO_01\"},"
+          + "\"context\":{\"readOnly\":false,\"write\":true,\"confirmation\":\"%s N8N_DEMO_01\"}}";
+      assertEquals(403, send("POST", path, body.formatted("CREATE"), TOKEN).statusCode());
+      var accepted = send("POST", path, body.formatted(entry.getValue()), TOKEN);
+      assertEquals(200, accepted.statusCode(), entry.getKey());
+      assertTrue(accepted.body().contains("\"write\":true"));
+    }
+  }
+
+  @Test void readOnlySidecarRejectsUserLifecycleChanges() throws Exception {
+    var response = send("POST", "/v1/operations/resetSu01UserPassword/execute",
+        "{\"operation\":\"resetSu01UserPassword\",\"parameters\":{\"username\":\"N8N_DEMO_01\"},"
+            + "\"context\":{\"readOnly\":false,\"write\":true,\"confirmation\":\"RESET N8N_DEMO_01\"}}",
+        TOKEN);
+    assertEquals(403, response.statusCode());
+  }
+
+  @Test void buildsOperationSpecificConfirmations() {
+    var parameters = Map.<String, Object>of("username", "n8n_demo_01");
+    assertEquals("CREATE N8N_DEMO_01", HttpApi.expectedConfirmation("createSu01CommunicationUser", parameters));
+    assertEquals("RESET N8N_DEMO_01", HttpApi.expectedConfirmation("resetSu01UserPassword", parameters));
+    assertEquals("LOCK N8N_DEMO_01", HttpApi.expectedConfirmation("lockSu01User", parameters));
+    assertEquals("UNLOCK N8N_DEMO_01", HttpApi.expectedConfirmation("unlockSu01User", parameters));
+    assertEquals("", HttpApi.expectedConfirmation("listSu01Users", parameters));
+  }
+
   private HttpResponse<String> send(String method, String path, String body, String token) throws Exception {
     var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path));
     if (token != null) builder.header("Authorization", "Bearer " + token);
@@ -152,6 +189,9 @@ final class HttpApiTest {
     @Override public Map<String, Object> createCommunicationUser(Map<String, Object> parameters) {
       return Map.of("username", parameters.get("username"), "created", true,
           "userType", "Communication", "rolesAssigned", 0, "profilesAssigned", 0);
+    }
+    @Override public Map<String, Object> manageUser(String operation, Map<String, Object> parameters) {
+      return Map.of("username", parameters.get("username"), "verified", true, "lockStatus", "Unlocked");
     }
     private UserRecord user(String username) {
       return new UserRecord(username, "Dialog", "Test User", "test@example.com", "2025-01-01",

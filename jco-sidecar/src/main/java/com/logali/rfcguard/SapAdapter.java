@@ -16,5 +16,9 @@ interface SapAdapter extends AutoCloseable {
   default Map<String, Object> createCommunicationUser(Map<String, Object> parameters) {
     throw new IllegalArgumentException("USER_CREATION_DISABLED");
   }
+  /** Governed lifecycle change for one prefix-restricted user: password reset, lock or unlock. */
+  default Map<String, Object> manageUser(String operation, Map<String, Object> parameters) {
+    throw new IllegalArgumentException("USER_CREATION_DISABLED");
+  }
   @Override default void close() {}
 }
