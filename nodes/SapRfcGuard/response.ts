@@ -111,6 +111,7 @@ export function sanitizeProvisioningHealthResponse(value: unknown): Record<strin
 
 export function sanitizeBusinessHealthResponse(value: unknown): Record<string, unknown> {
 	const response = asRecord(value, 'Sidecar health response');
+	const status = assertHealthyStatus(response);
 	const capabilities = asRecord(response.capabilities, 'Sidecar health capabilities');
 	if (capabilities.readOnly !== false || capabilities.writeEnabled !== true) {
 		throw new OperationalError('The configured sidecar does not advertise business-operation capability.');
@@ -127,8 +128,8 @@ export function sanitizeBusinessHealthResponse(value: unknown): Record<string, u
 	}
 	const backend = safeBackend(response.backend);
 	return {
-		connected: response.status === 'ok' || response.status === 'healthy',
-		status: String(response.status ?? 'unknown'),
+		connected: true,
+		status,
 		service: String(response.service ?? 'sap-rfc-sidecar'),
 		version: String(response.version ?? 'unknown'),
 		readOnly: false,

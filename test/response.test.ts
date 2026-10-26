@@ -264,5 +264,14 @@ describe('sidecar response governance', () => {
 			}),
 			/business-write alias/,
 		);
+		for (const status of ['degraded', 'unavailable', undefined]) {
+			assert.throws(
+				() => sanitizeBusinessHealthResponse({
+					status,
+					capabilities: { readOnly: false, writeEnabled: true, operations: ['createIncomingInvoice'] },
+				}),
+				/did not report a healthy status/,
+			);
+		}
 	});
 });
