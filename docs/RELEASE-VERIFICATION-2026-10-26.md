@@ -43,6 +43,18 @@ GitHub release `v0.5.0`. Pull request #20 was merged into `main` at commit
 - Post-merge CI: [run 40300184237](https://github.com/EskadiaHQ/n8n-nodes-sap-rfc-guard/actions/runs/40300184237).
 - Trusted npm publication: [run 40300207513](https://github.com/EskadiaHQ/n8n-nodes-sap-rfc-guard/actions/runs/40300207513).
 - GitHub release: [v0.5.0](https://github.com/EskadiaHQ/n8n-nodes-sap-rfc-guard/releases/tag/v0.5.0).
+- Registry: `latest` resolves to `0.5.0` and the version carries an npm provenance
+  attestation. The Sigstore transparency log entry is
+  [3483091041](https://search.sigstore.dev/?logIndex=3483091041).
+- Published tarball: SHA-1 `65530c7a923115c98a0b700d731e6bbbc0bf0d7d`, integrity
+  `sha512-C8mBmpKBU4omgYVwlg4DMjwwflCEybstk6jGbPj7vj+miChzD+NIgWf+ExBZBemCYRJYFaoRfm918+m8rVtN7Q==`.
+  Both match the values reported by the publish run.
+- Clean installation: the downloaded tarball matched those hashes, installed as
+  `0.5.0` and contains the compiled node with the four user-administration
+  operations and `examples/su01/user-admin/`.
+- npm reported the package as *being processed*. It appeared on the registry about
+  three minutes after publication, and its tarball reached every CDN edge a few
+  minutes later.
 
 ## Not verified
 
