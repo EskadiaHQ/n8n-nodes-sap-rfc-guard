@@ -22,7 +22,7 @@ function requestOptions(
 	method: 'GET' | 'POST',
 	path: string,
 	correlationId: string,
-	mode: 'read-only' | 'user-provisioning' = 'read-only',
+	mode: 'read-only' | 'business-operations' | 'user-provisioning' = 'read-only',
 	body?: Record<string, unknown>,
 ): RfcGuardRequestOptions {
 	const baseUrl = normalizeBaseUrl(credentials.baseUrl, credentials.allowInsecureHttp === true);
@@ -89,13 +89,44 @@ export async function executeApprovedOperation(
 			'POST',
 			`/v1/operations/${encodeURIComponent(operation)}/execute`,
 			correlationId,
-			'read-only',
+			credentials.sidecarMode === 'businessOperations' ? 'business-operations' : 'read-only',
 			{
 				operation,
 				parameters,
 				context: {
 					client: 'n8n-sap-rfc-guard',
 					readOnly: true,
+				},
+			},
+		),
+		credentials,
+	);
+}
+
+export async function executeApprovedBusinessWriteOperation(
+	credentials: SapRfcGuardCredentials,
+	httpRequest: RfcGuardHttpRequest,
+	operation: string,
+	parameters: Record<string, unknown>,
+	correlationId: string,
+	confirmation: string,
+): Promise<unknown> {
+	return await performRequest(
+		httpRequest,
+		requestOptions(
+			credentials,
+			'POST',
+			`/v1/operations/${encodeURIComponent(operation)}/execute`,
+			correlationId,
+			'business-operations',
+			{
+				operation,
+				parameters,
+				context: {
+					client: 'n8n-sap-rfc-guard',
+					readOnly: false,
+					write: true,
+					confirmation,
 				},
 			},
 		),

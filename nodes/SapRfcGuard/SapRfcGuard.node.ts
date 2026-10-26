@@ -17,13 +17,18 @@ import {
 } from 'n8n-workflow';
 
 import {
+	executeApprovedBusinessWriteOperation,
 	executeApprovedOperation,
 	executeApprovedWriteOperation,
 	testSidecarConnection,
 } from './client';
 import {
 	allowedDataFieldsForOperation,
+	assertBusinessOperationsCredential,
 	assertCreateConfirmation,
+	assertGoodsReceiptConfirmation,
+	assertInvoiceCreateConfirmation,
+	assertInvoiceParkConfirmation,
 	assertOperationAllowed,
 	assertOperationId,
 	assertProvisioningCredential,
@@ -32,9 +37,13 @@ import {
 	parseDataFieldPolicies,
 	parseParametersJson,
 	validateGovernanceConfiguration,
+	INVOICE_CREATE_OPERATION,
+	INVOICE_PARK_OPERATION,
+	GOODS_RECEIPT_CREATE_OPERATION,
 	USER_CREATE_OPERATION,
 } from './governance';
 import {
+	sanitizeBusinessHealthResponse,
 	sanitizeExecutionResponse,
 	sanitizeHealthResponse,
 	sanitizeProvisioningHealthResponse,
@@ -108,6 +117,7 @@ export class SapRfcGuard implements INodeType {
 					{ name: 'Company Code', value: 'companyCode' },
 					{ name: 'Connection', value: 'connection' },
 					{ name: 'Customer', value: 'customer' },
+					{ name: 'Goods Movement', value: 'goodsMovement' },
 					{ name: 'Incoming Invoice', value: 'incomingInvoice' },
 					{ name: 'Material', value: 'material' },
 					{ name: 'Open Item', value: 'openItem' },
@@ -118,6 +128,117 @@ export class SapRfcGuard implements INodeType {
 					{ name: 'Vendor', value: 'vendor' },
 				],
 				default: 'connection',
+			},
+			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['goodsMovement'] } },
+				options: [
+					{
+						name: 'Create Purchase-Order Goods Receipt',
+						value: 'createGoodsReceipt',
+						action: 'Post a governed 101 goods receipt',
+						description:
+							'Validates the open purchase-order quantity, posts movement 101, commits, and reads the material document back',
+					},
+				],
+				default: 'createGoodsReceipt',
+			},
+			{
+				displayName: 'Document Date',
+				name: 'goodsReceiptDocumentDate',
+				type: 'string',
+				default: '',
+				placeholder: '2026-08-25',
+				required: true,
+				displayOptions: { show: { resource: ['goodsMovement'] } },
+			},
+			{
+				displayName: 'Posting Date',
+				name: 'goodsReceiptPostingDate',
+				type: 'string',
+				default: '',
+				placeholder: '2026-08-25',
+				required: true,
+				displayOptions: { show: { resource: ['goodsMovement'] } },
+			},
+			{
+				displayName: 'External Reference',
+				name: 'goodsReceiptReference',
+				type: 'string',
+				default: '',
+				placeholder: 'WB030926-GR01',
+				required: true,
+				description: 'Stable delivery-note or intake reference, maximum 16 characters',
+				displayOptions: { show: { resource: ['goodsMovement'] } },
+			},
+			{
+				displayName: 'Purchase Order',
+				name: 'goodsReceiptPurchaseOrder',
+				type: 'string',
+				default: '',
+				placeholder: '4500000009',
+				required: true,
+				displayOptions: { show: { resource: ['goodsMovement'] } },
+			},
+			{
+				displayName: 'Purchase Order Item',
+				name: 'goodsReceiptPurchaseOrderItem',
+				type: 'string',
+				default: '00010',
+				required: true,
+				displayOptions: { show: { resource: ['goodsMovement'] } },
+			},
+			{
+				displayName: 'Quantity',
+				name: 'goodsReceiptQuantity',
+				type: 'number',
+				typeOptions: { minValue: 0 },
+				default: 1,
+				required: true,
+				displayOptions: { show: { resource: ['goodsMovement'] } },
+			},
+			{
+				displayName: 'Unit',
+				name: 'goodsReceiptUnit',
+				type: 'string',
+				default: 'PC',
+				required: true,
+				displayOptions: { show: { resource: ['goodsMovement'] } },
+			},
+			{
+				displayName: 'Plant',
+				name: 'goodsReceiptPlant',
+				type: 'string',
+				default: '1010',
+				required: true,
+				displayOptions: { show: { resource: ['goodsMovement'] } },
+			},
+			{
+				displayName: 'Storage Location',
+				name: 'goodsReceiptStorageLocation',
+				type: 'string',
+				default: '101A',
+				displayOptions: { show: { resource: ['goodsMovement'] } },
+			},
+			{
+				displayName: 'Item Text',
+				name: 'goodsReceiptItemText',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { resource: ['goodsMovement'] } },
+			},
+			{
+				displayName: 'Write Confirmation',
+				name: 'goodsReceiptConfirmation',
+				type: 'string',
+				default: '',
+				placeholder: 'POST GOODS RECEIPT WB030926-GR01',
+				required: true,
+				description: 'Must exactly match POST GOODS RECEIPT followed by the external reference',
+				displayOptions: { show: { resource: ['goodsMovement'] } },
 			},
 			{
 				displayName: 'Operation',
@@ -157,6 +278,138 @@ export class SapRfcGuard implements INodeType {
 					},
 				],
 				default: 'getMany',
+			},
+			{
+				displayName: 'Company Code',
+				name: 'createInvoiceCompanyCode',
+				type: 'string',
+				default: '1010',
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Document Date',
+				name: 'createInvoiceDocumentDate',
+				type: 'string',
+				default: '',
+				placeholder: '2025-02-15',
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Posting Date',
+				name: 'createInvoicePostingDate',
+				type: 'string',
+				default: '',
+				placeholder: '2025-02-15',
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Reference',
+				name: 'createInvoiceReference',
+				type: 'string',
+				default: '',
+				placeholder: 'WB030926-INV01',
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Currency',
+				name: 'createInvoiceCurrency',
+				type: 'string',
+				default: 'EUR',
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Gross Amount',
+				name: 'createInvoiceGrossAmount',
+				type: 'number',
+				typeOptions: { minValue: 0 },
+				default: 0,
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Purchase Order',
+				name: 'createInvoicePurchaseOrder',
+				type: 'string',
+				default: '',
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Purchase Order Item',
+				name: 'createInvoicePurchaseOrderItem',
+				type: 'string',
+				default: '00010',
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Item Amount',
+				name: 'createInvoiceItemAmount',
+				type: 'number',
+				typeOptions: { minValue: 0 },
+				default: 0,
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Quantity',
+				name: 'createInvoiceQuantity',
+				type: 'number',
+				typeOptions: { minValue: 0 },
+				default: 1,
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Purchase Order Unit',
+				name: 'createInvoiceUnit',
+				type: 'string',
+				default: 'ST',
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Tax Code',
+				name: 'createInvoiceTaxCode',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Goods Receipt Document',
+				name: 'createInvoiceReferenceDocument',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Goods Receipt Year',
+				name: 'createInvoiceReferenceDocumentYear',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Goods Receipt Item',
+				name: 'createInvoiceReferenceDocumentItem',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
+			},
+			{
+				displayName: 'Write Confirmation',
+				name: 'createInvoiceConfirmation',
+				type: 'string',
+				default: '',
+				placeholder: 'CREATE INVOICE WB030926-INV01',
+				description: 'Must exactly match CREATE INVOICE or PARK INVOICE followed by the reference',
+				required: true,
+				displayOptions: { show: { resource: ['incomingInvoice'], operation: ['create', 'park'] } },
 			},
 			{
 				displayName: 'Company Code',
@@ -394,6 +647,12 @@ export class SapRfcGuard implements INodeType {
 				displayOptions: { show: { resource: ['incomingInvoice'] } },
 				options: [
 					{
+						name: 'Create',
+						value: 'create',
+						action: 'Create a governed incoming invoice',
+						description: 'Creates and commits one MM supplier invoice, then reads it back',
+					},
+					{
 						name: 'Detect Potential Duplicates',
 						value: 'detectDuplicates',
 						action: 'Detect potential duplicate incoming invoices',
@@ -411,6 +670,12 @@ export class SapRfcGuard implements INodeType {
 						action: 'List incoming invoices',
 						description:
 							'Uses the fixed BAPI_INCOMINGINVOICE_GETLIST mapping and a bounded date window',
+					},
+					{
+						name: 'Park',
+						value: 'park',
+						action: 'Park a governed incoming invoice',
+						description: 'Parks one MM supplier invoice without posting it, then reads it back',
 					},
 				],
 				default: 'getMany',
@@ -885,6 +1150,13 @@ export class SapRfcGuard implements INodeType {
 							message: 'Governed SAP user-provisioning sidecar connection successful',
 						};
 					}
+					if (credentials.sidecarMode === 'businessOperations') {
+						sanitizeBusinessHealthResponse(result);
+						return {
+							status: 'OK',
+							message: 'Governed SAP business-operation sidecar connection successful',
+						};
+					}
 					sanitizeHealthResponse(result);
 					return {
 						status: 'OK',
@@ -925,7 +1197,9 @@ export class SapRfcGuard implements INodeType {
 					outputItems.push({
 						json: ((credentials.sidecarMode ?? 'readOnly') === 'userProvisioning'
 							? sanitizeProvisioningHealthResponse(result)
-							: sanitizeHealthResponse(result)) as IDataObject,
+							: credentials.sidecarMode === 'businessOperations'
+								? sanitizeBusinessHealthResponse(result)
+								: sanitizeHealthResponse(result)) as IDataObject,
 						pairedItem: { item: itemIndex },
 					});
 					continue;
@@ -1057,7 +1331,47 @@ export class SapRfcGuard implements INodeType {
 							this.getNodeParameter('descriptionPattern', itemIndex, ''),
 						);
 					}
-				} else if (resource === 'purchaseOrder') {
+					} else if (resource === 'goodsMovement') {
+						assertBusinessOperationsCredential(credentials, 'goodsReceipt');
+						const reference = assertGoodsReceiptConfirmation(
+							String(this.getNodeParameter('goodsReceiptReference', itemIndex)),
+							String(this.getNodeParameter('goodsReceiptConfirmation', itemIndex)),
+						);
+						const writeParameters: Record<string, unknown> = {
+							documentDate: String(this.getNodeParameter('goodsReceiptDocumentDate', itemIndex)).trim(),
+							postingDate: String(this.getNodeParameter('goodsReceiptPostingDate', itemIndex)).trim(),
+							reference,
+							purchaseOrder: String(this.getNodeParameter('goodsReceiptPurchaseOrder', itemIndex)).trim(),
+							purchaseOrderItem: String(this.getNodeParameter('goodsReceiptPurchaseOrderItem', itemIndex)).trim(),
+							quantity: this.getNodeParameter('goodsReceiptQuantity', itemIndex),
+							unit: String(this.getNodeParameter('goodsReceiptUnit', itemIndex)).trim().toUpperCase(),
+							plant: String(this.getNodeParameter('goodsReceiptPlant', itemIndex)).trim().toUpperCase(),
+						};
+						setOptionalParameter(writeParameters, 'storageLocation', this.getNodeParameter('goodsReceiptStorageLocation', itemIndex, ''));
+						setOptionalParameter(writeParameters, 'itemText', this.getNodeParameter('goodsReceiptItemText', itemIndex, ''));
+						const allowedOperations = parseAllowedOperations(credentials.allowedOperations);
+						assertOperationAllowed(GOODS_RECEIPT_CREATE_OPERATION, allowedOperations);
+						const allowedFields = allowedDataFieldsForOperation(
+							GOODS_RECEIPT_CREATE_OPERATION,
+							parseDataFieldPolicies(credentials.dataFieldPoliciesJson),
+						);
+						enforceSerializedByteLimit(writeParameters, Number(credentials.maxRequestBytes), 'Operation parameters');
+						const traceId = correlationId(this.getNodeParameter('correlationId', itemIndex, '') as string);
+						const response = await executeApprovedBusinessWriteOperation(
+							credentials,
+							httpRequest,
+							GOODS_RECEIPT_CREATE_OPERATION,
+							writeParameters,
+							traceId,
+							`POST GOODS RECEIPT ${reference}`,
+						);
+						enforceSerializedByteLimit(response, Number(credentials.maxResponseBytes), 'Sidecar response');
+						outputItems.push({
+							json: sanitizeWriteResponse(response, GOODS_RECEIPT_CREATE_OPERATION, traceId, allowedFields) as IDataObject,
+							pairedItem: { item: itemIndex },
+						});
+						continue;
+					} else if (resource === 'purchaseOrder') {
 					operation = 'getPurchaseOrderDetail';
 					parameters = {
 						purchaseOrder: String(this.getNodeParameter('purchaseOrderId', itemIndex)).trim(),
@@ -1069,6 +1383,55 @@ export class SapRfcGuard implements INodeType {
 					};
 				} else if (resource === 'incomingInvoice') {
 					const selected = this.getNodeParameter('operation', itemIndex) as string;
+					if (selected === 'create' || selected === 'park') {
+						assertBusinessOperationsCredential(credentials);
+						const reference = (selected === 'park'
+							? assertInvoiceParkConfirmation
+							: assertInvoiceCreateConfirmation)(
+								String(this.getNodeParameter('createInvoiceReference', itemIndex)),
+								String(this.getNodeParameter('createInvoiceConfirmation', itemIndex)),
+							);
+						const writeParameters: Record<string, unknown> = {
+							companyCode: String(this.getNodeParameter('createInvoiceCompanyCode', itemIndex)).trim().toUpperCase(),
+							documentDate: String(this.getNodeParameter('createInvoiceDocumentDate', itemIndex)).trim(),
+							postingDate: String(this.getNodeParameter('createInvoicePostingDate', itemIndex)).trim(),
+							reference,
+							currency: String(this.getNodeParameter('createInvoiceCurrency', itemIndex)).trim().toUpperCase(),
+							grossAmount: this.getNodeParameter('createInvoiceGrossAmount', itemIndex),
+							purchaseOrder: String(this.getNodeParameter('createInvoicePurchaseOrder', itemIndex)).trim(),
+							purchaseOrderItem: String(this.getNodeParameter('createInvoicePurchaseOrderItem', itemIndex)).trim(),
+							itemAmount: this.getNodeParameter('createInvoiceItemAmount', itemIndex),
+							quantity: this.getNodeParameter('createInvoiceQuantity', itemIndex),
+							unit: String(this.getNodeParameter('createInvoiceUnit', itemIndex)).trim().toUpperCase(),
+						};
+						setOptionalParameter(writeParameters, 'taxCode', this.getNodeParameter('createInvoiceTaxCode', itemIndex, ''));
+						setOptionalParameter(writeParameters, 'referenceDocument', this.getNodeParameter('createInvoiceReferenceDocument', itemIndex, ''));
+						setOptionalParameter(writeParameters, 'referenceDocumentYear', this.getNodeParameter('createInvoiceReferenceDocumentYear', itemIndex, ''));
+						setOptionalParameter(writeParameters, 'referenceDocumentItem', this.getNodeParameter('createInvoiceReferenceDocumentItem', itemIndex, ''));
+						const writeOperation = selected === 'park' ? INVOICE_PARK_OPERATION : INVOICE_CREATE_OPERATION;
+						const allowedOperations = parseAllowedOperations(credentials.allowedOperations);
+						assertOperationAllowed(writeOperation, allowedOperations);
+						const allowedFields = allowedDataFieldsForOperation(
+							writeOperation,
+							parseDataFieldPolicies(credentials.dataFieldPoliciesJson),
+						);
+						enforceSerializedByteLimit(writeParameters, Number(credentials.maxRequestBytes), 'Operation parameters');
+						const traceId = correlationId(this.getNodeParameter('correlationId', itemIndex, '') as string);
+						const response = await executeApprovedBusinessWriteOperation(
+							credentials,
+							httpRequest,
+							writeOperation,
+							writeParameters,
+							traceId,
+							`${selected === 'park' ? 'PARK' : 'CREATE'} INVOICE ${reference}`,
+						);
+						enforceSerializedByteLimit(response, Number(credentials.maxResponseBytes), 'Sidecar response');
+						outputItems.push({
+							json: sanitizeWriteResponse(response, writeOperation, traceId, allowedFields) as IDataObject,
+							pairedItem: { item: itemIndex },
+						});
+						continue;
+					}
 					operation =
 						selected === 'getDetails'
 							? 'getIncomingInvoiceDetail'

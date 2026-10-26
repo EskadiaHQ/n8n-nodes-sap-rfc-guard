@@ -2,10 +2,12 @@ export interface SapRfcGuardCredentials {
 	baseUrl: string;
 	apiToken: string;
 	headerMode?: 'bearer' | 'xRfcGuardToken';
-	sidecarMode?: 'readOnly' | 'userProvisioning';
+	sidecarMode?: 'readOnly' | 'businessOperations' | 'userProvisioning';
 	allowedOperations: string;
 	dataFieldPoliciesJson: string;
 	allowUserCreation?: boolean;
+	allowIncomingInvoiceCreation?: boolean;
+	allowGoodsReceiptCreation?: boolean;
 	allowInsecureHttp?: boolean;
 	rejectUnauthorized?: boolean;
 	connectionTimeout: number;

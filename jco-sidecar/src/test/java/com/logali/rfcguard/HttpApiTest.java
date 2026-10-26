@@ -129,12 +129,71 @@ final class HttpApiTest {
         "{\"operation\":\"listSu01Users\",\"context\":{\"readOnly\":true}}", TOKEN).statusCode());
   }
 
+  @Test void businessModeKeepsReadsAndRequiresInvoiceBoundWriteConfirmation() throws Exception {
+    api.close();
+    var configuration = new Configuration(port, TOKEN, "TEST", 50, 90, 30, "", "",
+        "business-operations", false, "N8N_DEMO_", "ZN8N_MOODLE", 7,
+        "Temporary-Only-123!", Map.of());
+    api = new HttpApi(configuration, new StubAdapter());
+    api.start();
+    var health = send("GET", "/v1/health", null, TOKEN);
+    assertTrue(health.body().contains("createIncomingInvoice"));
+    assertTrue(health.body().contains("getPurchaseOrderDetail"));
+
+    var read = sendWithMode("POST", "/v1/operations/getPurchaseOrderDetail/execute",
+        "{\"operation\":\"getPurchaseOrderDetail\",\"parameters\":{\"purchaseOrder\":\"4500000010\"},"
+            + "\"context\":{\"readOnly\":true}}", TOKEN, "business-operations");
+    assertEquals(200, read.statusCode());
+
+    String parameters = "{\"companyCode\":\"1010\",\"documentDate\":\"2025-02-15\","
+        + "\"postingDate\":\"2025-02-15\",\"reference\":\"WB030926-INV01\","
+        + "\"currency\":\"EUR\",\"grossAmount\":\"80.00\","
+        + "\"purchaseOrder\":\"4500000010\",\"purchaseOrderItem\":\"00010\","
+        + "\"itemAmount\":\"80.00\",\"quantity\":\"8\",\"unit\":\"ST\"}";
+    var denied = sendWithMode("POST", "/v1/operations/createIncomingInvoice/execute",
+        "{\"operation\":\"createIncomingInvoice\",\"parameters\":" + parameters
+            + ",\"context\":{\"readOnly\":false,\"write\":true,"
+            + "\"confirmation\":\"CREATE INVOICE OTHER\"}}", TOKEN, "business-operations");
+    assertEquals(403, denied.statusCode());
+    var created = sendWithMode("POST", "/v1/operations/createIncomingInvoice/execute",
+        "{\"operation\":\"createIncomingInvoice\",\"parameters\":" + parameters
+            + ",\"context\":{\"readOnly\":false,\"write\":true,"
+            + "\"confirmation\":\"CREATE INVOICE WB030926-INV01\"}}", TOKEN,
+        "business-operations");
+    assertEquals(200, created.statusCode());
+    assertTrue(created.body().contains("\"write\":true"));
+    assertTrue(created.body().contains("5100000001"));
+
+    String receiptParameters = "{\"documentDate\":\"2026-08-25\",\"postingDate\":\"2026-08-25\"," 
+        + "\"reference\":\"WB030926-GR01\",\"purchaseOrder\":\"4500000009\"," 
+        + "\"purchaseOrderItem\":\"00010\",\"quantity\":\"6\",\"unit\":\"PC\"," 
+        + "\"plant\":\"1010\",\"storageLocation\":\"101A\"}";
+    var receiptDenied = sendWithMode("POST", "/v1/operations/createGoodsReceipt/execute",
+        "{\"operation\":\"createGoodsReceipt\",\"parameters\":" + receiptParameters
+            + ",\"context\":{\"readOnly\":false,\"write\":true,"
+            + "\"confirmation\":\"POST GOODS RECEIPT OTHER\"}}", TOKEN,
+        "business-operations");
+    assertEquals(403, receiptDenied.statusCode());
+    var receipt = sendWithMode("POST", "/v1/operations/createGoodsReceipt/execute",
+        "{\"operation\":\"createGoodsReceipt\",\"parameters\":" + receiptParameters
+            + ",\"context\":{\"readOnly\":false,\"write\":true,"
+            + "\"confirmation\":\"POST GOODS RECEIPT WB030926-GR01\"}}", TOKEN,
+        "business-operations");
+    assertEquals(200, receipt.statusCode());
+    assertTrue(receipt.body().contains("5000000001"));
+  }
+
   private HttpResponse<String> send(String method, String path, String body, String token) throws Exception {
+    return sendWithMode(method, path, body, token,
+        body != null && body.contains("\"write\":true") ? "user-provisioning" : "read-only");
+  }
+
+  private HttpResponse<String> sendWithMode(
+      String method, String path, String body, String token, String mode) throws Exception {
     var builder = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + port + path));
     if (token != null) builder.header("Authorization", "Bearer " + token);
     if ("POST".equals(method)) builder.header("Content-Type", "application/json")
-        .header("X-RFC-Guard-Mode", body != null && body.contains("\"write\":true")
-            ? "user-provisioning" : "read-only")
+        .header("X-RFC-Guard-Mode", mode)
         .POST(HttpRequest.BodyPublishers.ofString(body));
     else builder.GET();
     return HttpClient.newHttpClient().send(builder.build(), HttpResponse.BodyHandlers.ofString());
@@ -152,6 +211,14 @@ final class HttpApiTest {
     @Override public Map<String, Object> createCommunicationUser(Map<String, Object> parameters) {
       return Map.of("username", parameters.get("username"), "created", true,
           "userType", "Communication", "rolesAssigned", 0, "profilesAssigned", 0);
+    }
+    @Override public Map<String, Object> createIncomingInvoice(Map<String, Object> parameters) {
+      return Map.of("invoiceDocument", "5100000001", "fiscalYear", "2025", "created", true,
+          "verified", true);
+    }
+    @Override public Map<String, Object> createGoodsReceipt(Map<String, Object> parameters) {
+      return Map.of("materialDocument", "5000000001", "materialDocumentYear", "2026",
+          "created", true, "verified", true);
     }
     private UserRecord user(String username) {
       return new UserRecord(username, "Dialog", "Test User", "test@example.com", "2025-01-01",

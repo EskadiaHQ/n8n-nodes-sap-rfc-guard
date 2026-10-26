@@ -16,5 +16,14 @@ interface SapAdapter extends AutoCloseable {
   default Map<String, Object> createCommunicationUser(Map<String, Object> parameters) {
     throw new IllegalArgumentException("USER_CREATION_DISABLED");
   }
+  default Map<String, Object> createIncomingInvoice(Map<String, Object> parameters) {
+    throw new IllegalArgumentException("INVOICE_CREATION_DISABLED");
+  }
+  default Map<String, Object> parkIncomingInvoice(Map<String, Object> parameters) {
+    throw new IllegalArgumentException("INVOICE_PARKING_DISABLED");
+  }
+  default Map<String, Object> createGoodsReceipt(Map<String, Object> parameters) {
+    throw new IllegalArgumentException("GOODS_RECEIPT_CREATION_DISABLED");
+  }
   @Override default void close() {}
 }

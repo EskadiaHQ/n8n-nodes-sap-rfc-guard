@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -86,14 +87,21 @@ final class HttpApi implements AutoCloseable {
       adapter.ping();
       var backend = adapter.backend();
       boolean provisioning = "user-provisioning".equals(configuration.mode());
+      boolean businessOperations = "business-operations".equals(configuration.mode());
+      var operations = provisioning ? GuardService.USER_WRITE_OPERATIONS
+          : businessOperations
+              ? union(GuardService.READ_OPERATIONS, GuardService.BUSINESS_WRITE_OPERATIONS)
+              : GuardService.READ_OPERATIONS;
       response(exchange, 200, Map.of(
           "status", "ok", "service", provisioning
-              ? "sap-rfc-guard-jco-provisioning" : "sap-rfc-guard-jco", "version", "0.4.5",
+              ? "sap-rfc-guard-jco-provisioning"
+              : businessOperations ? "sap-rfc-guard-jco-business" : "sap-rfc-guard-jco",
+          "version", "0.4.7",
           "backend", backendMap(backend),
           "capabilities", Map.of(
-              "readOnly", !provisioning,
-              "writeEnabled", provisioning && configuration.userCreationEnabled(),
-              "operations", provisioning ? GuardService.WRITE_OPERATIONS : GuardService.READ_OPERATIONS),
+              "readOnly", !provisioning && !businessOperations,
+              "writeEnabled", provisioning || businessOperations,
+              "operations", operations),
           "timestamp", Instant.now().toString(), "correlationId", correlationId));
     } catch (RuntimeException error) {
       response(exchange, 503, Map.of("status", "unavailable", "service", "sap-rfc-guard-jco",
@@ -112,9 +120,13 @@ final class HttpApi implements AutoCloseable {
     }
     String operation = path.substring(prefix.length(), path.length() - "/execute".length());
     boolean provisioning = "user-provisioning".equals(configuration.mode());
+    boolean businessOperations = "business-operations".equals(configuration.mode());
     boolean readOperation = !provisioning && GuardService.READ_OPERATIONS.contains(operation);
-    boolean writeOperation = provisioning && configuration.userCreationEnabled()
-        && GuardService.WRITE_OPERATIONS.contains(operation);
+    boolean userWriteOperation = provisioning && configuration.userCreationEnabled()
+        && GuardService.USER_WRITE_OPERATIONS.contains(operation);
+    boolean businessWriteOperation = businessOperations
+        && GuardService.BUSINESS_WRITE_OPERATIONS.contains(operation);
+    boolean writeOperation = userWriteOperation || businessWriteOperation;
     if (!readOperation && !writeOperation) { error(exchange, 403, "OPERATION_NOT_ALLOWED", correlationId); return; }
     try {
       byte[] bodyBytes = exchange.getRequestBody().readNBytes(MAX_BODY_BYTES + 1);
@@ -127,13 +139,15 @@ final class HttpApi implements AutoCloseable {
         error(exchange, 403, "OPERATION_CONTRACT_REQUIRED", correlationId); return;
       }
       if (readOperation && (!Boolean.TRUE.equals(context.get("readOnly"))
-          || !"read-only".equals(exchange.getRequestHeaders().getFirst("X-RFC-Guard-Mode")))) {
+          || !(businessOperations ? "business-operations" : "read-only")
+              .equals(exchange.getRequestHeaders().getFirst("X-RFC-Guard-Mode")))) {
         error(exchange, 403, "READ_ONLY_CONTRACT_REQUIRED", correlationId); return;
       }
       if (writeOperation && (!Boolean.TRUE.equals(context.get("write"))
           || !Boolean.FALSE.equals(context.get("readOnly"))
-          || !"user-provisioning".equals(exchange.getRequestHeaders().getFirst("X-RFC-Guard-Mode"))
-          || !expectedConfirmation(parameters).equals(context.get("confirmation")))) {
+          || !(userWriteOperation ? "user-provisioning" : "business-operations")
+              .equals(exchange.getRequestHeaders().getFirst("X-RFC-Guard-Mode"))
+          || !expectedConfirmation(operation, parameters).equals(context.get("confirmation")))) {
         error(exchange, 403, "WRITE_CONFIRMATION_REQUIRED", correlationId); return;
       }
       var data = withinTimeout(() -> service.execute(operation, parameters));
@@ -157,14 +171,23 @@ final class HttpApi implements AutoCloseable {
       if (cause instanceof IllegalArgumentException invalid) {
         error(exchange, 400, safeCode(invalid.getMessage(), "INVALID_REQUEST"), correlationId);
       } else {
+        logOperationFailure(operation, correlationId, cause);
         error(exchange, 502, writeOperation ? "SAP_WRITE_FAILED" : "SAP_READ_FAILED", correlationId);
       }
     } catch (InterruptedException error) {
       Thread.currentThread().interrupt();
       error(exchange, 503, "REQUEST_INTERRUPTED", correlationId);
     } catch (Exception error) {
+      logOperationFailure(operation, correlationId, error);
       error(exchange, 502, writeOperation ? "SAP_WRITE_FAILED" : "SAP_READ_FAILED", correlationId);
     }
+  }
+
+  private static void logOperationFailure(String operation, String correlationId, Throwable error) {
+    String message = error == null || error.getMessage() == null ? error == null ? "unknown" : error.getClass().getSimpleName()
+        : error.getMessage().replaceAll("[\\r\\n\\t]+", " ").replaceAll("(?i)(password|token|authorization|cookie)\\s*[:=]\\s*\\S+", "$1=[REDACTED]");
+    System.err.printf("RFC_GUARD_OPERATION_FAILED operation=%s correlationId=%s cause=%s%n",
+        operation, correlationId, message.substring(0, Math.min(message.length(), 1200)));
   }
 
   private boolean authorized(HttpExchange exchange) {
@@ -216,16 +239,31 @@ final class HttpApi implements AutoCloseable {
     return candidate != null && candidate.matches("[A-Z][A-Z0-9_]{2,64}") ? candidate : fallback;
   }
 
-  private static String expectedConfirmation(Map<String, Object> parameters) {
+  private static String expectedConfirmation(String operation, Map<String, Object> parameters) {
+    if (GuardService.BUSINESS_WRITE_OPERATIONS.contains(operation)) {
+      Object reference = parameters.get("reference");
+      if ("createGoodsReceipt".equals(operation)) {
+        return reference == null ? "" : "POST GOODS RECEIPT "
+            + reference.toString().trim().toUpperCase();
+      }
+      String verb = "parkIncomingInvoice".equals(operation) ? "PARK" : "CREATE";
+      return reference == null ? "" : verb + " INVOICE " + reference.toString().trim().toUpperCase();
+    }
     Object username = parameters.get("username");
     return username == null ? "" : "CREATE " + username.toString().trim().toUpperCase();
+  }
+
+  private static Set<String> union(Set<String> first, Set<String> second) {
+    var result = new java.util.LinkedHashSet<String>(first);
+    result.addAll(second);
+    return Set.copyOf(result);
   }
 
   private static String message(String code) {
     return switch (code) {
       case "UNAUTHORIZED" -> "A valid sidecar credential is required.";
       case "READ_ONLY_CONTRACT_REQUIRED" -> "A matching read-only business operation contract is required.";
-      case "WRITE_CONFIRMATION_REQUIRED" -> "A matching explicit confirmation is required for this user creation.";
+      case "WRITE_CONFIRMATION_REQUIRED" -> "A matching explicit confirmation is required for this write operation.";
       case "OPERATION_CONTRACT_REQUIRED" -> "The operation body must match the governed route.";
       case "REQUEST_TOO_LARGE" -> "The request exceeds 64 KiB.";
       case "USERNAME_REQUIRED" -> "The username parameter is required.";

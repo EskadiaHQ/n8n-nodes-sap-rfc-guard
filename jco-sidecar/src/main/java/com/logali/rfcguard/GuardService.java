@@ -19,7 +19,9 @@ final class GuardService {
       "listIncomingInvoices", "getIncomingInvoiceDetail", "detectPotentialDuplicateInvoices",
       "getVendorOpenItems", "getCustomerOpenItems", "summarizeOverdueItems",
       "getVendorDetail", "getCustomerDetail");
-  static final Set<String> WRITE_OPERATIONS = Set.of("createSu01CommunicationUser");
+  static final Set<String> USER_WRITE_OPERATIONS = Set.of("createSu01CommunicationUser");
+  static final Set<String> BUSINESS_WRITE_OPERATIONS = Set.of(
+      "createIncomingInvoice", "parkIncomingInvoice", "createGoodsReceipt");
   private static final Map<String, Set<String>> PARAMETERS = Map.ofEntries(
       Map.entry("listSu01Users", Set.of("client", "maxRows", "inactiveDays", "userType", "accountStatus")),
       Map.entry("getSu01UserDetail", Set.of("client", "username")),
@@ -49,6 +51,20 @@ final class GuardService {
           "client", "maxRows", "accountType", "companyCode", "account", "keyDate", "notedItems")),
       Map.entry("getVendorDetail", Set.of("client", "vendor", "companyCode")),
       Map.entry("getCustomerDetail", Set.of("client", "customer", "companyCode")),
+      Map.entry("createIncomingInvoice", Set.of(
+          "client", "companyCode", "documentDate", "postingDate", "reference", "currency",
+          "grossAmount", "purchaseOrder", "purchaseOrderItem", "itemAmount", "quantity",
+          "unit", "taxCode", "referenceDocument", "referenceDocumentYear",
+          "referenceDocumentItem")),
+      Map.entry("parkIncomingInvoice", Set.of(
+          "client", "companyCode", "documentDate", "postingDate", "reference", "currency",
+          "grossAmount", "purchaseOrder", "purchaseOrderItem", "itemAmount", "quantity",
+          "unit", "taxCode", "referenceDocument", "referenceDocumentYear",
+          "referenceDocumentItem")),
+      Map.entry("createGoodsReceipt", Set.of(
+          "client", "documentDate", "postingDate", "reference", "purchaseOrder",
+          "purchaseOrderItem", "quantity", "unit", "plant", "storageLocation",
+          "itemText")),
       Map.entry("createSu01CommunicationUser", Set.of(
           "client", "username", "firstName", "lastName", "email", "validDays")));
   private static final Set<String> USER_TYPES = Set.of(
@@ -74,6 +90,9 @@ final class GuardService {
           "getVendorDetail", "getCustomerDetail" ->
           adapter.executeBusinessRead(operation, parameters);
       case "createSu01CommunicationUser" -> List.of(adapter.createCommunicationUser(parameters));
+      case "createIncomingInvoice" -> List.of(adapter.createIncomingInvoice(parameters));
+      case "parkIncomingInvoice" -> List.of(adapter.parkIncomingInvoice(parameters));
+      case "createGoodsReceipt" -> List.of(adapter.createGoodsReceipt(parameters));
       default -> throw new IllegalArgumentException("OPERATION_NOT_ALLOWED");
     };
   }
@@ -189,6 +208,35 @@ final class GuardService {
           && !email.toString().matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
         throw new IllegalArgumentException("EMAIL_INVALID");
       }
+    }
+    if (Set.of("createIncomingInvoice", "parkIncomingInvoice").contains(operation)) {
+      requiredPattern(parameters, "companyCode", "[A-Za-z0-9]{4}", "COMPANY_CODE_INVALID");
+      requiredIsoDate(parameters, "documentDate", "DOCUMENT_DATE_INVALID");
+      requiredIsoDate(parameters, "postingDate", "POSTING_DATE_INVALID");
+      requiredText(parameters, "reference", 1, 16, "REFERENCE_INVALID");
+      requiredPattern(parameters, "currency", "[A-Za-z]{3}", "CURRENCY_INVALID");
+      requiredDecimal(parameters, "grossAmount", true, "AMOUNT_INVALID");
+      requiredPattern(parameters, "purchaseOrder", "[0-9]{1,10}", "PURCHASE_ORDER_INVALID");
+      requiredPattern(parameters, "purchaseOrderItem", "[0-9]{1,5}", "PURCHASE_ORDER_ITEM_INVALID");
+      requiredDecimal(parameters, "itemAmount", true, "AMOUNT_INVALID");
+      requiredDecimal(parameters, "quantity", true, "QUANTITY_INVALID");
+      requiredPattern(parameters, "unit", "[A-Za-z0-9]{1,3}", "UNIT_INVALID");
+      optionalPattern(parameters, "taxCode", "[A-Za-z0-9]{1,2}", "TAX_CODE_INVALID");
+      optionalPattern(parameters, "referenceDocument", "[0-9]{1,10}", "REFERENCE_DOCUMENT_INVALID");
+      optionalPattern(parameters, "referenceDocumentYear", "[0-9]{4}", "REFERENCE_DOCUMENT_YEAR_INVALID");
+      optionalPattern(parameters, "referenceDocumentItem", "[0-9]{1,4}", "REFERENCE_DOCUMENT_ITEM_INVALID");
+    }
+    if ("createGoodsReceipt".equals(operation)) {
+      requiredIsoDate(parameters, "documentDate", "DOCUMENT_DATE_INVALID");
+      requiredIsoDate(parameters, "postingDate", "POSTING_DATE_INVALID");
+      requiredText(parameters, "reference", 1, 16, "REFERENCE_INVALID");
+      requiredPattern(parameters, "purchaseOrder", "[0-9]{1,10}", "PURCHASE_ORDER_INVALID");
+      requiredPattern(parameters, "purchaseOrderItem", "[0-9]{1,5}", "PURCHASE_ORDER_ITEM_INVALID");
+      requiredDecimal(parameters, "quantity", true, "QUANTITY_INVALID");
+      requiredPattern(parameters, "unit", "[A-Za-z0-9]{1,3}", "UNIT_INVALID");
+      requiredPattern(parameters, "plant", "[A-Za-z0-9]{1,4}", "PLANT_INVALID");
+      optionalPattern(parameters, "storageLocation", "[A-Za-z0-9]{1,4}", "STORAGE_LOCATION_INVALID");
+      optionalText(parameters, "itemText", 1, 50, "ITEM_TEXT_INVALID");
     }
   }
 

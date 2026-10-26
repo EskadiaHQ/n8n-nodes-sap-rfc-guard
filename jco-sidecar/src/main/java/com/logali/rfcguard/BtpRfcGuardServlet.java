@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -57,11 +58,16 @@ public final class BtpRfcGuardServlet extends HttpServlet {
     try {
       adapter.ping();
       var backend = adapter.backend();
+      boolean businessOperations = "business-operations".equals(configuration.mode());
+      var operations = businessOperations
+          ? union(GuardService.READ_OPERATIONS, GuardService.BUSINESS_WRITE_OPERATIONS)
+          : GuardService.READ_OPERATIONS;
       response(response, 200, Map.of(
-          "status", "ok", "service", "sap-rfc-guard-jco", "version", "0.4.5",
+          "status", "ok", "service", businessOperations
+              ? "sap-rfc-guard-jco-business" : "sap-rfc-guard-jco", "version", "0.4.7",
           "backend", backendMap(backend),
-          "capabilities", Map.of("readOnly", true, "writeEnabled", false,
-              "operations", GuardService.READ_OPERATIONS),
+          "capabilities", Map.of("readOnly", !businessOperations,
+              "writeEnabled", businessOperations, "operations", operations),
           "timestamp", Instant.now().toString(), "correlationId", correlationId));
     } catch (RuntimeException failure) {
       response(response, 503, Map.of("status", "unavailable", "service", "sap-rfc-guard-jco",
@@ -79,7 +85,11 @@ public final class BtpRfcGuardServlet extends HttpServlet {
       error(response, 403, "OPERATION_NOT_ALLOWED", correlationId); return;
     }
     String operation = path.substring(prefix.length(), path.length() - "/execute".length());
-    if (!GuardService.READ_OPERATIONS.contains(operation)) {
+    boolean businessOperations = "business-operations".equals(configuration.mode());
+    boolean readOperation = GuardService.READ_OPERATIONS.contains(operation);
+    boolean writeOperation = businessOperations
+        && GuardService.BUSINESS_WRITE_OPERATIONS.contains(operation);
+    if (!readOperation && !writeOperation) {
       error(response, 403, "OPERATION_NOT_ALLOWED", correlationId); return;
     }
     try {
@@ -97,17 +107,24 @@ public final class BtpRfcGuardServlet extends HttpServlet {
       if (!operation.equals(body.get("operation"))) {
         error(response, 403, "OPERATION_CONTRACT_REQUIRED", correlationId); return;
       }
-      if (!Boolean.TRUE.equals(context.get("readOnly"))
-          || !"read-only".equals(request.getHeader("X-RFC-Guard-Mode"))) {
+      if (readOperation && (!Boolean.TRUE.equals(context.get("readOnly"))
+          || !(businessOperations ? "business-operations" : "read-only")
+              .equals(request.getHeader("X-RFC-Guard-Mode")))) {
         error(response, 403, "READ_ONLY_CONTRACT_REQUIRED", correlationId); return;
+      }
+      if (writeOperation && (!Boolean.FALSE.equals(context.get("readOnly"))
+          || !Boolean.TRUE.equals(context.get("write"))
+          || !"business-operations".equals(request.getHeader("X-RFC-Guard-Mode"))
+          || !expectedWriteConfirmation(operation, parameters).equals(context.get("confirmation")))) {
+        error(response, 403, "WRITE_CONFIRMATION_REQUIRED", correlationId); return;
       }
       var task = operationExecutor.submit(() -> service.execute(operation, parameters));
       var data = task.get(configuration.requestTimeoutSeconds(), TimeUnit.SECONDS);
       var meta = new LinkedHashMap<String, Object>();
       meta.put("source", "sap-jco");
       meta.put("syntheticData", false);
-      meta.put("readOnly", true);
-      meta.put("write", false);
+      meta.put("readOnly", !writeOperation);
+      meta.put("write", writeOperation);
       meta.put("operation", operation);
       meta.put("rowCount", data.size());
       meta.put("correlationId", correlationId);
@@ -117,19 +134,21 @@ public final class BtpRfcGuardServlet extends HttpServlet {
     } catch (IllegalArgumentException invalid) {
       error(response, 400, safeCode(invalid.getMessage(), "INVALID_REQUEST"), correlationId);
     } catch (TimeoutException timeout) {
-      error(response, 504, "SAP_READ_TIMEOUT", correlationId);
+      error(response, 504, writeOperation ? "SAP_WRITE_TIMEOUT" : "SAP_READ_TIMEOUT", correlationId);
     } catch (ExecutionException execution) {
       Throwable cause = execution.getCause();
       if (cause instanceof IllegalArgumentException invalid) {
         error(response, 400, safeCode(invalid.getMessage(), "INVALID_REQUEST"), correlationId);
       } else {
-        error(response, 502, "SAP_READ_FAILED", correlationId);
+        logFailure(operation, correlationId, cause);
+        error(response, 502, writeOperation ? "SAP_WRITE_FAILED" : "SAP_READ_FAILED", correlationId);
       }
     } catch (InterruptedException interrupted) {
       Thread.currentThread().interrupt();
       error(response, 503, "REQUEST_INTERRUPTED", correlationId);
     } catch (Exception failure) {
-      error(response, 502, "SAP_READ_FAILED", correlationId);
+      logFailure(operation, correlationId, failure);
+      error(response, 502, writeOperation ? "SAP_WRITE_FAILED" : "SAP_READ_FAILED", correlationId);
     }
   }
 
@@ -166,5 +185,31 @@ public final class BtpRfcGuardServlet extends HttpServlet {
 
   private static String safeCode(String candidate, String fallback) {
     return candidate != null && candidate.matches("[A-Z][A-Z0-9_]{2,64}") ? candidate : fallback;
+  }
+
+  private static void logFailure(String operation, String correlationId, Throwable failure) {
+    String message = failure == null || failure.getMessage() == null
+        ? "" : failure.getMessage().replaceAll("[\\r\\n\\t]+", " ").replaceAll("(?i)(password|token|secret)=[^ ]+", "$1=[REDACTED]");
+    if (message.length() > 240) message = message.substring(0, 240);
+    String type = failure == null ? "Unknown" : failure.getClass().getSimpleName();
+    System.err.printf("RFC Guard failure operation=%s correlationId=%s type=%s message=%s%n",
+        operation, correlationId, type, message);
+  }
+
+  private static String expectedWriteConfirmation(
+      String operation, Map<String, Object> parameters) {
+    Object reference = parameters.get("reference");
+    if ("createGoodsReceipt".equals(operation)) {
+      return reference == null ? "" : "POST GOODS RECEIPT "
+          + reference.toString().trim().toUpperCase();
+    }
+    String verb = "parkIncomingInvoice".equals(operation) ? "PARK" : "CREATE";
+    return reference == null ? "" : verb + " INVOICE " + reference.toString().trim().toUpperCase();
+  }
+
+  private static Set<String> union(Set<String> first, Set<String> second) {
+    var result = new java.util.LinkedHashSet<String>(first);
+    result.addAll(second);
+    return Set.copyOf(result);
   }
 }

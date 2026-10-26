@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.4.14 - 2026-08-25
+
+- Add a separately governed `Incoming Invoice / Park` operation backed by
+  `BAPI_INCOMINGINVOICE_PARK`, explicit commit and read-back verification.
+- Require the exact `PARK INVOICE <reference>` confirmation and a credential policy that
+  explicitly allowlists `parkIncomingInvoice`; posting and user provisioning remain separate.
+- Return explicit `parked` and `posted` evidence so downstream workflows cannot confuse an
+  MIR7 preliminary invoice with an FI document that has already been posted.
+- Add a separately allowlisted `Goods Movement / Create Purchase-Order Goods Receipt` operation
+  backed by `BAPI_GOODSMVT_CREATE`, fixed movement 101, `GM_CODE 01`, explicit commit/rollback and
+  `BAPI_GOODSMVT_GETDETAIL` read-back verification.
+- Require `POST GOODS RECEIPT <reference>`, exact open-quantity validation and a credential opt-in
+  dedicated to goods receipts; AI Tool execution remains blocked.
+- Add an importable customer order self-service contract that requires trusted channel identity
+  and an allowlisted sales document before the real SAP read, returning HTTP 403 with zero SAP
+  calls for cross-customer or unauthenticated requests.
+
+## 0.4.13 - 2026-08-24
+
+- Add a governed `Incoming Invoice / Create` operation backed by
+  `BAPI_INCOMINGINVOICE_CREATE`, explicit commit and read-back verification.
+- Require a dedicated business-operations credential, explicit opt-in and exact
+  `CREATE INVOICE <reference>` confirmation; AI Tool execution remains blocked.
+- Preserve governed purchase-order and invoice reads in the same operated test sidecar so a
+  workflow can validate, post and verify one real MM invoice end to end.
+- Reject unexpected or malformed invoice fields before SAP and avoid duplicate writes by
+  reusing an existing document with the same company, date and reference.
+- Keep `BAPI_INCOMINGINVOICE_CREATE` and `BAPI_TRANSACTION_COMMIT` in one stateful JCo context;
+  the A4H/250 acceptance created `5105600755/2025` and an identical retry reused it.
+
 ## 0.4.11 - 2026-08-23
 
 - Derive ATP availability from requested and confirmed quantities instead of
