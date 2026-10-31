@@ -4,6 +4,7 @@ import type { SapRfcGuardCredentials } from './types';
 
 const OPERATION_ID = /^[a-z][a-zA-Z0-9.-]{0,63}$/;
 const DATA_FIELD = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
+const CATALOG_FUNCTION = /^[A-Z0-9_/]{1,30}$/;
 export const USER_CREATE_OPERATION = 'createSu01CommunicationUser';
 export const USER_LOGON_RESET_OPERATION = 'resetSu01UserPassword';
 export const USER_LOCK_OPERATION = 'lockSu01User';
@@ -200,11 +201,64 @@ export function validateGovernanceConfiguration(credentials: SapRfcGuardCredenti
 			);
 		}
 	}
+	if (credentials.allowFunctionCatalog === true) {
+		if (mode === 'userProvisioning') {
+			throw new OperationalError('User-provisioning credentials cannot enable the function catalog.');
+		}
+		parseCatalogFunctions(credentials.catalogFunctions);
+	}
 	assertIntegerRange(credentials.connectionTimeout, 'Connection Timeout', 1000, 120000);
 	assertIntegerRange(credentials.requestTimeout, 'Request Timeout', 1000, 300000);
 	assertIntegerRange(credentials.maxRows, 'Maximum Rows', 1, 1000);
 	assertIntegerRange(credentials.maxRequestBytes, 'Maximum Request Size', 1024, 1048576);
 	assertIntegerRange(credentials.maxResponseBytes, 'Maximum Response Size', 1024, 5242880);
+}
+
+/** Function modules a credential may use through the catalog; the sidecar policy still decides. */
+export function parseCatalogFunctions(value: string | undefined): Set<string> {
+	const functions = new Set<string>();
+	for (const entry of String(value ?? '').split(/[\s,]+/)) {
+		const name = entry.trim().toUpperCase();
+		if (name === '') continue;
+		if (!CATALOG_FUNCTION.test(name)) {
+			throw new OperationalError(`Approved Catalog Functions contains the invalid function name ${name}.`);
+		}
+		if (functions.has(name)) {
+			throw new OperationalError(`Approved Catalog Functions contains the duplicate ${name}.`);
+		}
+		functions.add(name);
+	}
+	return functions;
+}
+
+export function assertCatalogCredential(credentials: SapRfcGuardCredentials): Set<string> {
+	if ((credentials.sidecarMode ?? 'readOnly') === 'userProvisioning') {
+		throw new OperationalError('The approved function catalog is not available on user-provisioning credentials.');
+	}
+	if (credentials.allowFunctionCatalog !== true) {
+		throw new OperationalError('This credential does not enable the approved function catalog.');
+	}
+	const functions = parseCatalogFunctions(credentials.catalogFunctions);
+	if (functions.size === 0) {
+		throw new OperationalError(
+			'Approved Catalog Functions is empty. List the SAP function modules this credential may use.',
+		);
+	}
+	return functions;
+}
+
+export function normalizeCatalogFunction(value: unknown): string {
+	const name = String(value ?? '').trim().toUpperCase();
+	if (!CATALOG_FUNCTION.test(name)) {
+		throw new OperationalError('Select an approved SAP function module (for example BAPI_PO_GETDETAIL1).');
+	}
+	return name;
+}
+
+export function assertCatalogFunctionAllowed(name: string, allowed: Set<string>): void {
+	if (!allowed.has(name)) {
+		throw new OperationalError(`${name} is not listed in this credential's Approved Catalog Functions.`);
+	}
 }
 
 export function assertProvisioningCredential(credentials: SapRfcGuardCredentials): void {

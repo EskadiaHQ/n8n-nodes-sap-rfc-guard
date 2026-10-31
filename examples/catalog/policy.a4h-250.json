@@ -1,0 +1,290 @@
+{
+  "version": 1,
+  "description": "Reviewed read-only catalog for the course 415 SAP S/4HANA 2025 system A4H/250. Entries marked NEGATIVE TEST exist to prove refusals.",
+  "metadataSearch": true,
+  "functions": {
+    "BAPI_PO_GETDETAIL1": {
+      "title": "Read purchase order",
+      "description": "Header, items and schedule lines of one purchase order (ME23N data).",
+      "kind": "BAPI",
+      "bor": {
+        "objectType": "BUS2012",
+        "method": "GETDETAIL1"
+      },
+      "effect": "read",
+      "transaction": "none",
+      "allowMetadata": true,
+      "allowExecute": true,
+      "inputs": {
+        "PURCHASEORDER": {
+          "required": true,
+          "pad": "alpha",
+          "pattern": "[0-9]{10}"
+        },
+        "ITEM_TEXT": {
+          "allowedValues": [
+            "",
+            "X"
+          ]
+        },
+        "HEADER_TEXT": {
+          "allowedValues": [
+            "",
+            "X"
+          ]
+        }
+      },
+      "outputs": [
+        "POHEADER",
+        "POITEM",
+        "POSCHEDULE"
+      ],
+      "maxRows": 50,
+      "businessAuthorizations": [
+        "M_BEST_BSA ACTVT 03",
+        "M_BEST_EKO ACTVT 03",
+        "M_BEST_EKG ACTVT 03",
+        "M_BEST_WRK ACTVT 03"
+      ],
+      "approval": {
+        "approvedBy": "Ivan Gaitero (SAP owner, course 415)",
+        "approvedOn": "2026-10-31",
+        "reviewReference": "C415-CAT-001"
+      },
+      "tags": [
+        "purchasing",
+        "MM",
+        "pedido"
+      ]
+    },
+    "BAPI_VENDOR_GETDETAIL": {
+      "title": "Read supplier",
+      "description": "General and company-code data of one supplier. Bank data is deliberately not returned.",
+      "kind": "BAPI",
+      "bor": {
+        "objectType": "LFA1",
+        "method": "GETDETAIL"
+      },
+      "effect": "read",
+      "transaction": "none",
+      "allowMetadata": true,
+      "allowExecute": true,
+      "inputs": {
+        "VENDORNO": {
+          "required": true,
+          "pad": "alpha",
+          "pattern": "[0-9]{10}"
+        },
+        "COMPANYCODE": {
+          "pattern": "[A-Z0-9]{4}"
+        }
+      },
+      "fixed": {
+        "BYPASS_AUTH_CHECK": ""
+      },
+      "outputs": [
+        "GENERALDETAIL",
+        "COMPANYDETAIL"
+      ],
+      "maxRows": 10,
+      "businessAuthorizations": [
+        "F_LFA1_APP ACTVT 03",
+        "F_LFA1_BUK ACTVT 03",
+        "F_LFA1_GRP ACTVT 03"
+      ],
+      "approval": {
+        "approvedBy": "Ivan Gaitero (SAP owner, course 415)",
+        "approvedOn": "2026-10-31",
+        "reviewReference": "C415-CAT-002"
+      },
+      "tags": [
+        "purchasing",
+        "FI",
+        "proveedor"
+      ]
+    },
+    "BAPI_MATERIAL_AVAILABILITY": {
+      "title": "Check material availability",
+      "description": "ATP check of one material in one plant for requested dates. Use MATERIAL up to 18 characters and MATERIAL_LONG only for longer numbers. Any update-task registration is discarded after the call.",
+      "kind": "BAPI",
+      "bor": {
+        "objectType": "BUS1001006",
+        "method": "AVAILABILITY"
+      },
+      "effect": "read",
+      "transaction": "rollback-after-call",
+      "allowMetadata": true,
+      "allowExecute": true,
+      "inputs": {
+        "MATERIAL": {
+          "pattern": "[A-Z0-9_./-]{1,18}"
+        },
+        "MATERIAL_LONG": {
+          "pattern": "[A-Z0-9_./-]{19,40}"
+        },
+        "PLANT": {
+          "required": true,
+          "pattern": "[A-Z0-9]{4}"
+        },
+        "UNIT": {
+          "required": true,
+          "pattern": "[A-Z0-9]{1,3}"
+        },
+        "STGE_LOC": {
+          "pattern": "[A-Z0-9]{4}"
+        },
+        "CHECK_RULE": {
+          "pattern": "[A-Z0-9]{1,2}"
+        },
+        "WMDVSX": {
+          "maxRows": 10,
+          "fields": [
+            "REQ_DATE",
+            "REQ_QTY"
+          ]
+        }
+      },
+      "fixed": {
+        "READ_ATP_LOCK": ""
+      },
+      "outputs": [
+        "AV_QTY_PLT",
+        "ENDLEADTME",
+        "DIALOGFLAG",
+        "WMDVEX"
+      ],
+      "maxRows": 20,
+      "businessAuthorizations": [
+        "No dedicated authorization object; the RFC user needs S_RFC for the function group"
+      ],
+      "approval": {
+        "approvedBy": "Ivan Gaitero (SAP owner, course 415)",
+        "approvedOn": "2026-10-31",
+        "reviewReference": "C415-CAT-003"
+      },
+      "tags": [
+        "inventory",
+        "MM",
+        "disponibilidad"
+      ]
+    },
+    "BAPI_COMPANYCODE_GETDETAIL": {
+      "title": "NEGATIVE TEST - execution only, signature not approved",
+      "kind": "BAPI",
+      "bor": {
+        "objectType": "BUS0002",
+        "method": "GETDETAIL"
+      },
+      "effect": "read",
+      "transaction": "none",
+      "allowMetadata": false,
+      "allowExecute": true,
+      "inputs": {
+        "COMPANYCODEID": {
+          "required": true,
+          "pattern": "[A-Z0-9]{4}"
+        }
+      },
+      "outputs": [
+        "COMPANYCODE_DETAIL"
+      ],
+      "approval": {
+        "approvedBy": "Ivan Gaitero (SAP owner, course 415)",
+        "approvedOn": "2026-10-31",
+        "reviewReference": "C415-CAT-NEG-1"
+      },
+      "tags": [
+        "negative-test"
+      ]
+    },
+    "BAPI_SALESORDER_GETSTATUS": {
+      "title": "NEGATIVE TEST - listed for consultation, execution not approved",
+      "kind": "BAPI",
+      "bor": {
+        "objectType": "BUS2032",
+        "method": "GETSTATUS"
+      },
+      "effect": "read",
+      "transaction": "none",
+      "allowMetadata": true,
+      "allowExecute": false,
+      "tags": [
+        "negative-test"
+      ]
+    },
+    "Z_C415_NOT_IN_SAP": {
+      "title": "NEGATIVE TEST - approved but absent from SAP",
+      "kind": "RFC",
+      "effect": "read",
+      "transaction": "none",
+      "allowMetadata": true,
+      "allowExecute": false,
+      "tags": [
+        "negative-test"
+      ]
+    },
+    "STFC_CONNECTION": {
+      "title": "RFC connection echo (generic RFC, not a BAPI)",
+      "description": "SAP standard test module: echoes a text and returns the system that answered.",
+      "kind": "RFC",
+      "effect": "read",
+      "transaction": "none",
+      "allowMetadata": true,
+      "allowExecute": true,
+      "inputs": {
+        "REQUTEXT": {
+          "required": true,
+          "pattern": "[A-Za-z0-9 ._-]{1,60}"
+        }
+      },
+      "outputs": [
+        "ECHOTEXT",
+        "RESPTEXT"
+      ],
+      "maxRows": 1,
+      "businessAuthorizations": [
+        "None; S_RFC for function group SYST is enough"
+      ],
+      "approval": {
+        "approvedBy": "Ivan Gaitero (SAP owner, course 415)",
+        "approvedOn": "2026-10-31",
+        "reviewReference": "C415-CAT-004"
+      },
+      "tags": [
+        "technical",
+        "rfc"
+      ]
+    },
+    "STFC_EXCEPTION": {
+      "title": "NEGATIVE TEST - always raises the ABAP exception EXAMPLE",
+      "kind": "RFC",
+      "effect": "read",
+      "transaction": "none",
+      "allowMetadata": true,
+      "allowExecute": true,
+      "outputs": [
+        "ITAB1000"
+      ],
+      "maxRows": 1,
+      "approval": {
+        "approvedBy": "Ivan Gaitero (SAP owner, course 415)",
+        "approvedOn": "2026-10-31",
+        "reviewReference": "C415-CAT-NEG-2"
+      },
+      "tags": [
+        "negative-test"
+      ]
+    },
+    "DATE_CHECK_PLAUSIBILITY": {
+      "title": "NEGATIVE TEST - exists in SAP but is not remote-enabled",
+      "kind": "RFC",
+      "effect": "read",
+      "transaction": "none",
+      "allowMetadata": true,
+      "allowExecute": false,
+      "tags": [
+        "negative-test"
+      ]
+    }
+  }
+}

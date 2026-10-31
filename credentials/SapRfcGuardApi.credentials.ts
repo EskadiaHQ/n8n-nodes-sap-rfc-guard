@@ -105,6 +105,28 @@ export class SapRfcGuardApi implements ICredentialType {
 			displayOptions: { show: { sidecarMode: ['userProvisioning'] } },
 		},
 		{
+			displayName: 'Allow Approved Function Catalog',
+			name: 'allowFunctionCatalog',
+			type: 'boolean',
+			default: false,
+			description:
+				'Whether this credential may search, inspect and run read-only SAP functions approved in the sidecar catalog policy',
+			displayOptions: { show: { sidecarMode: ['readOnly', 'businessOperations'] } },
+		},
+		{
+			displayName: 'Approved Catalog Functions',
+			name: 'catalogFunctions',
+			type: 'string',
+			typeOptions: { rows: 3 },
+			default: '',
+			placeholder: 'BAPI_PO_GETDETAIL1, BAPI_VENDOR_GETDETAIL',
+			description:
+				'Comma- or line-separated SAP function modules this credential may use. The sidecar policy is checked again on every call.',
+			displayOptions: {
+				show: { sidecarMode: ['readOnly', 'businessOperations'], allowFunctionCatalog: [true] },
+			},
+		},
+		{
 			displayName: 'Validate TLS Certificate',
 			name: 'rejectUnauthorized',
 			type: 'boolean',

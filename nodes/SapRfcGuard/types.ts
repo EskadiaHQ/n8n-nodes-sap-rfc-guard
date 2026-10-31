@@ -16,6 +16,8 @@ export interface SapRfcGuardCredentials {
 	maxRequestBytes: number;
 	maxResponseBytes: number;
 	allowAiTool?: boolean;
+	allowFunctionCatalog?: boolean;
+	catalogFunctions?: string;
 }
 
 export interface RfcGuardRequestOptions {
@@ -26,6 +28,8 @@ export interface RfcGuardRequestOptions {
 	json: true;
 	timeout: number;
 	skipSslCertificateValidation: boolean;
+	ignoreHttpStatusErrors?: boolean;
+	returnFullResponse?: boolean;
 }
 
 export type RfcGuardHttpRequest = (options: RfcGuardRequestOptions) => Promise<unknown>;

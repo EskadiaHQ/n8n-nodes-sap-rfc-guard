@@ -220,3 +220,84 @@ export function sanitizeWriteResponse(
 		},
 	};
 }
+
+const CATALOG_SUMMARY_FIELDS = [
+	'name', 'title', 'description', 'kind', 'bor', 'effect', 'transaction',
+	'allowMetadata', 'allowExecute', 'tags',
+];
+
+function pick(source: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+	const output: Record<string, unknown> = {};
+	for (const key of keys) if (source[key] !== undefined) output[key] = source[key];
+	return output;
+}
+
+export function sanitizeCatalogList(value: unknown): {
+	functions: Record<string, unknown>[];
+	nextCursor: number | null;
+	excluded: unknown[];
+	policySha256: string;
+} {
+	const response = asRecord(value, 'Sidecar catalog response');
+	if (!Array.isArray(response.functions)) {
+		throw new OperationalError('Sidecar catalog response did not contain a function list.');
+	}
+	const page = asRecord(response.page ?? {}, 'Sidecar catalog page');
+	const next = page.nextCursor === null || page.nextCursor === undefined ? null : Number(page.nextCursor);
+	return {
+		functions: response.functions.map((row) => pick(asRecord(row, 'Catalog entry'), CATALOG_SUMMARY_FIELDS)),
+		nextCursor: Number.isInteger(next) ? next : null,
+		excluded: Array.isArray(response.excluded) ? response.excluded : [],
+		policySha256: String(response.policySha256 ?? ''),
+	};
+}
+
+export function sanitizeCatalogSignature(value: unknown, functionName: string): Record<string, unknown> {
+	const response = asRecord(value, 'Sidecar catalog signature');
+	if (response.name !== functionName) {
+		throw new OperationalError('Sidecar catalog signature does not match the requested function.');
+	}
+	const backend = safeBackend(response.backend);
+	return {
+		...pick(response, [
+			...CATALOG_SUMMARY_FIELDS, 'remote', 'parameters', 'exceptions', 'policy', 'bapi',
+			'documentation', 'permissions', 'signatureSource', 'policySha256', 'correlationId',
+		]),
+		...(backend ? { backend } : {}),
+	};
+}
+
+export function sanitizeCatalogExecution(
+	value: unknown,
+	functionName: string,
+	correlationId: string,
+	includeMetadata: boolean,
+): Record<string, unknown> {
+	const response = asRecord(value, 'Sidecar catalog response');
+	const meta = asRecord(response.meta, 'Sidecar catalog response meta');
+	if (meta.readOnly !== true || meta.write !== false) {
+		throw new OperationalError('Sidecar catalog response did not attest a read-only call.');
+	}
+	if (meta.source !== 'sap-jco' || meta.syntheticData !== false) {
+		throw new OperationalError('Sidecar catalog response is not evidence from SAP JCo.');
+	}
+	if (response.function !== functionName || meta.function !== functionName) {
+		throw new OperationalError('Sidecar catalog response does not match the requested function.');
+	}
+	const output: Record<string, unknown> = pick(response, [
+		'function', 'title', 'outcome', 'messages', 'exports', 'changing', 'tables', 'validatedParameters',
+	]);
+	if (includeMetadata) {
+		const backend = safeBackend(meta.backend);
+		output.meta = {
+			...pick(meta, [
+				'source', 'syntheticData', 'readOnly', 'write', 'dryRun', 'function', 'kind', 'kindVerified',
+				'effect', 'transactionPolicy', 'transaction', 'rowLimit', 'tableRows', 'truncated',
+				'policySha256', 'approval', 'signatureSource', 'executedAt', 'durationMs',
+			]),
+			correlationId: String(meta.correlationId ?? correlationId),
+			...(backend ? { backend } : {}),
+		};
+	}
+	return output;
+}

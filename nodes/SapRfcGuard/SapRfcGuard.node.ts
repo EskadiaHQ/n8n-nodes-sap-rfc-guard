@@ -10,13 +10,16 @@ import {
 	type IDataObject,
 	type IExecuteFunctions,
 	type IHttpRequestOptions,
+	type ILoadOptionsFunctions,
 	type INodeCredentialTestResult,
 	type INodeExecutionData,
+	type INodeListSearchResult,
 	type INodeType,
 	type INodeTypeDescription,
 } from 'n8n-workflow';
 
 import {
+	catalogRequest,
 	executeApprovedBusinessWriteOperation,
 	executeApprovedOperation,
 	executeApprovedWriteOperation,
@@ -25,6 +28,8 @@ import {
 import {
 	allowedDataFieldsForOperation,
 	assertBusinessOperationsCredential,
+	assertCatalogCredential,
+	assertCatalogFunctionAllowed,
 	assertGoodsReceiptConfirmation,
 	assertInvoiceCreateConfirmation,
 	assertInvoiceParkConfirmation,
@@ -33,6 +38,7 @@ import {
 	assertProvisioningCredential,
 	assertWriteConfirmation,
 	enforceSerializedByteLimit,
+	normalizeCatalogFunction,
 	parseAllowedOperations,
 	parseDataFieldPolicies,
 	parseParametersJson,
@@ -45,6 +51,9 @@ import {
 } from './governance';
 import {
 	sanitizeBusinessHealthResponse,
+	sanitizeCatalogExecution,
+	sanitizeCatalogList,
+	sanitizeCatalogSignature,
 	sanitizeExecutionResponse,
 	sanitizeHealthResponse,
 	sanitizeProvisioningHealthResponse,
@@ -77,6 +86,25 @@ function setOptionalParameter(
 ): void {
 	const normalized = String(value ?? '').trim();
 	if (normalized !== '') parameters[name] = normalized;
+}
+
+/** Keeps the user's JSON text as typed so the sidecar parses decimals and IDs exactly. */
+function catalogParametersText(value: unknown): string {
+	const text = typeof value === 'string' ? value.trim() || '{}' : JSON.stringify(value ?? {});
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch {
+		// Converted to NodeOperationError at the execute boundary, which has node context.
+		// eslint-disable-next-line @n8n/community-nodes/require-node-api-error
+		throw new OperationalError('SAP Parameters (JSON) must be valid JSON.');
+	}
+	if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+		throw new OperationalError(
+			'SAP Parameters (JSON) must be an object keyed by SAP parameter name, for example {"PURCHASEORDER":"4500000008"}.',
+		);
+	}
+	return text;
 }
 
 export class SapRfcGuard implements INodeType {
@@ -115,6 +143,7 @@ export class SapRfcGuard implements INodeType {
 				type: 'options',
 				noDataExpression: true,
 				options: [
+					{ name: 'Approved Function', value: 'approvedFunction' },
 					{ name: 'Company Code', value: 'companyCode' },
 					{ name: 'Connection', value: 'connection' },
 					{ name: 'Customer', value: 'customer' },
@@ -1075,6 +1104,111 @@ export class SapRfcGuard implements INodeType {
 				displayOptions: { show: { resource: ['readOperation'] } },
 			},
 			{
+				displayName: 'Operation',
+				name: 'operation',
+				type: 'options',
+				noDataExpression: true,
+				displayOptions: { show: { resource: ['approvedFunction'] } },
+				options: [
+					{
+						name: 'Execute',
+						value: 'execute',
+						action: 'Execute an approved SAP function',
+						description:
+							'Run one read-only SAP function approved in the sidecar catalog; the sidecar validates the parameters against the real SAP signature',
+					},
+					{
+						name: 'Get Signature',
+						value: 'getSignature',
+						action: 'Get the signature of an approved SAP function',
+						description:
+							'Return the real IMPORT, EXPORT, CHANGING and TABLES parameters, the approved inputs and the SAP documentation',
+					},
+					{
+						name: 'Search',
+						value: 'search',
+						action: 'Search approved SAP functions',
+						description: 'List the approved functions that this SAP system really exposes',
+					},
+				],
+				default: 'execute',
+			},
+			{
+				displayName: 'Search Text',
+				name: 'catalogQuery',
+				type: 'string',
+				default: '',
+				placeholder: 'purchase order',
+				description: 'Filter by function name, title, description or tag; empty lists all approved functions',
+				displayOptions: { show: { resource: ['approvedFunction'], operation: ['search'] } },
+			},
+			{
+				displayName: 'Function',
+				name: 'catalogFunction',
+				type: 'resourceLocator',
+				default: { mode: 'list', value: '' },
+				required: true,
+				description: 'Approved SAP function module. Only functions in the sidecar policy and in this credential are offered.',
+				displayOptions: {
+					show: { resource: ['approvedFunction'], operation: ['getSignature', 'execute'] },
+				},
+				modes: [
+					{
+						displayName: 'From Approved Catalog',
+						name: 'list',
+						type: 'list',
+						typeOptions: { searchListMethod: 'searchApprovedFunctions', searchable: true },
+					},
+					{
+						displayName: 'By Name',
+						name: 'name',
+						type: 'string',
+						placeholder: 'BAPI_PO_GETDETAIL1',
+						validation: [
+							{
+								type: 'regex',
+								properties: {
+									regex: '^[A-Za-z0-9_/]{1,30}$',
+									errorMessage: 'Enter an SAP function module name',
+								},
+							},
+						],
+					},
+				],
+			},
+			{
+				displayName: 'Use Get Signature first: it returns the real parameters and an input template. Values for CHAR and NUMC fields must be JSON strings, so leading zeros are kept; send amounts as text such as "12.50".',
+				name: 'catalogNotice',
+				type: 'notice',
+				default: '',
+				displayOptions: { show: { resource: ['approvedFunction'], operation: ['execute'] } },
+			},
+			{
+				displayName: 'SAP Parameters (JSON)',
+				name: 'catalogParametersJson',
+				type: 'json',
+				default: '{}',
+				description:
+					'Object keyed by SAP parameter name: scalars as text, structures as objects, tables as arrays of row objects',
+				displayOptions: { show: { resource: ['approvedFunction'], operation: ['execute'] } },
+			},
+			{
+				displayName: 'Validate Only',
+				name: 'catalogDryRun',
+				type: 'boolean',
+				default: false,
+				description: 'Whether to let the sidecar validate the parameters against the real signature without calling the function',
+				displayOptions: { show: { resource: ['approvedFunction'], operation: ['execute'] } },
+			},
+			{
+				displayName: 'Fail on SAP Error Message',
+				name: 'catalogFailOnSapError',
+				type: 'boolean',
+				default: true,
+				description: 'Whether an error or abort message (type E or A) returned by SAP stops the node; disable to branch on the outcome field',
+				displayOptions: { show: { resource: ['approvedFunction'], operation: ['execute'] } },
+			},
+			{
 				displayName: 'Correlation ID',
 				name: 'correlationId',
 				type: 'string',
@@ -1084,6 +1218,7 @@ export class SapRfcGuard implements INodeType {
 				displayOptions: {
 					show: {
 						resource: [
+							'approvedFunction',
 							'readOperation',
 							'userAdministration',
 							'companyCode',
@@ -1108,6 +1243,7 @@ export class SapRfcGuard implements INodeType {
 				displayOptions: {
 					show: {
 						resource: [
+							'approvedFunction',
 							'readOperation',
 							'companyCode',
 							'material',
@@ -1130,6 +1266,7 @@ export class SapRfcGuard implements INodeType {
 				displayOptions: {
 					show: {
 						resource: [
+							'approvedFunction',
 							'readOperation',
 							'companyCode',
 							'material',
@@ -1199,6 +1336,45 @@ export class SapRfcGuard implements INodeType {
 				}
 			},
 		},
+		listSearch: {
+			/** Approved AND present in SAP (sidecar) AND listed in this credential. */
+			async searchApprovedFunctions(
+				this: ILoadOptionsFunctions,
+				filter?: string,
+				paginationToken?: string,
+			): Promise<INodeListSearchResult> {
+				const credentials = (await this.getCredentials(
+					'sapRfcGuardApi',
+				)) as unknown as SapRfcGuardCredentials;
+				validateGovernanceConfiguration(credentials);
+				const allowed = assertCatalogCredential(credentials);
+				const cursor = Number(paginationToken ?? 0) || 0;
+				const query = new URLSearchParams({
+					query: String(filter ?? '').trim().slice(0, 60),
+					cursor: String(cursor),
+					limit: '20',
+				});
+				const listing = sanitizeCatalogList(
+					await catalogRequest(
+						credentials,
+						httpRequestAdapter(this.helpers.httpRequest),
+						'GET',
+						`/v1/catalog/functions?${query.toString()}`,
+						randomUUID(),
+					),
+				);
+				return {
+					results: listing.functions
+						.filter((entry) => allowed.has(String(entry.name)))
+						.map((entry) => ({
+							name: `${String(entry.name)} · ${String(entry.title ?? '')}`,
+							value: String(entry.name),
+							description: `${String(entry.kind)} · ${entry.allowExecute === true ? 'executable read' : 'signature only'}`,
+						})),
+					paginationToken: listing.nextCursor === null ? undefined : String(listing.nextCursor),
+				};
+			},
+		},
 	};
 
 	async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
@@ -1231,6 +1407,90 @@ export class SapRfcGuard implements INodeType {
 								: sanitizeHealthResponse(result)) as IDataObject,
 						pairedItem: { item: itemIndex },
 					});
+					continue;
+				}
+
+				if (resource === 'approvedFunction') {
+					const allowedFunctions = assertCatalogCredential(credentials);
+					const selected = this.getNodeParameter('operation', itemIndex, 'execute') as string;
+					const traceId = correlationId(
+						this.getNodeParameter('correlationId', itemIndex, '') as string,
+					);
+					if (selected === 'search') {
+						const text = String(this.getNodeParameter('catalogQuery', itemIndex, '')).trim();
+						const limit = this.getNodeParameter('limit', itemIndex, 50) as number;
+						const found: Record<string, unknown>[] = [];
+						let cursor: number | null = 0;
+						for (let page = 0; cursor !== null && page < 10 && found.length < limit; page += 1) {
+							const query = new URLSearchParams({ query: text, cursor: String(cursor), limit: '50' });
+							const response = await catalogRequest(
+								credentials, httpRequest, 'GET', `/v1/catalog/functions?${query.toString()}`, traceId,
+							);
+							enforceSerializedByteLimit(response, Number(credentials.maxResponseBytes), 'Sidecar response');
+							const listing = sanitizeCatalogList(response);
+							for (const entry of listing.functions) {
+								if (allowedFunctions.has(String(entry.name)) && found.length < limit) {
+									found.push({ ...entry, policySha256: listing.policySha256, correlationId: traceId });
+								}
+							}
+							cursor = listing.nextCursor;
+						}
+						outputItems.push(
+							...found.map((json) => ({ json: json as IDataObject, pairedItem: { item: itemIndex } })),
+						);
+						continue;
+					}
+					const functionName = normalizeCatalogFunction(
+						this.getNodeParameter('catalogFunction', itemIndex, '', { extractValue: true }),
+					);
+					assertCatalogFunctionAllowed(functionName, allowedFunctions);
+					const path = `/v1/catalog/functions/${encodeURIComponent(functionName)}`;
+					if (selected === 'getSignature') {
+						const response = await catalogRequest(credentials, httpRequest, 'GET', path, traceId);
+						enforceSerializedByteLimit(response, Number(credentials.maxResponseBytes), 'Sidecar response');
+						outputItems.push({
+							json: sanitizeCatalogSignature(response, functionName) as IDataObject,
+							pairedItem: { item: itemIndex },
+						});
+						continue;
+					}
+					const parametersJson = catalogParametersText(
+						this.getNodeParameter('catalogParametersJson', itemIndex, '{}'),
+					);
+					if (Buffer.byteLength(parametersJson, 'utf8') > Number(credentials.maxRequestBytes)) {
+						throw new OperationalError('SAP Parameters (JSON) exceeds the credential request-size limit.');
+					}
+					const requestedLimit = this.getNodeParameter('limit', itemIndex, 50) as number;
+					const response = await catalogRequest(credentials, httpRequest, 'POST', `${path}/execute`, traceId, {
+						function: functionName,
+						parametersJson,
+						options: {
+							maxRows: Math.min(requestedLimit, Number(credentials.maxRows)),
+							dryRun: this.getNodeParameter('catalogDryRun', itemIndex, false) as boolean,
+						},
+						context: { client: 'n8n-sap-rfc-guard', readOnly: true },
+					});
+					enforceSerializedByteLimit(response, Number(credentials.maxResponseBytes), 'Sidecar response');
+					const result = sanitizeCatalogExecution(
+						response,
+						functionName,
+						traceId,
+						this.getNodeParameter('includeMetadata', itemIndex, true) as boolean,
+					);
+					if (
+						result.outcome === 'BUSINESS_ERROR' &&
+						(this.getNodeParameter('catalogFailOnSapError', itemIndex, true) as boolean)
+					) {
+						const first = Array.isArray(result.messages)
+							? (result.messages.find((message) => ['E', 'A', 'X'].includes(
+								String((message as IDataObject).type))) as IDataObject | undefined)
+							: undefined;
+						throw new OperationalError(
+							`SAP returned an error message for ${functionName}: ${String(first?.message ?? 'see messages')}` +
+								(first?.id ? ` (${String(first.id)} ${String(first.number ?? '')})` : ''),
+						);
+					}
+					outputItems.push({ json: result as IDataObject, pairedItem: { item: itemIndex } });
 					continue;
 				}
 

@@ -1,0 +1,344 @@
+{
+  "name": "C415 · Catálogo RFC · Revisar pedido antes de reclamar al proveedor",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "35fde771-461d-5f4e-b8d0-4a89203a5529",
+      "name": "Iniciar la revisión",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "fcd0a5dc-0ed6-5a89-979a-8b9faaf3de2b",
+              "name": "pedido",
+              "value": "4500000008",
+              "type": "string"
+            },
+            {
+              "id": "4fbed9d6-6b52-527e-9983-c2f95a531d8d",
+              "name": "fechaComprobacion",
+              "value": "={{ $now.toFormat('yyyy-MM-dd') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "409f51e4-6498-52bf-ab2a-0ca49f424684",
+      "name": "Datos de la solicitud",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "approvedFunction",
+        "operation": "execute",
+        "catalogFunction": {
+          "__rl": true,
+          "mode": "list",
+          "value": "BAPI_PO_GETDETAIL1",
+          "cachedResultName": "BAPI_PO_GETDETAIL1 · Read purchase order"
+        },
+        "catalogParametersJson": "={{ JSON.stringify({ PURCHASEORDER: $json.pedido }) }}",
+        "limit": 20,
+        "catalogDryRun": false,
+        "catalogFailOnSapError": true
+      },
+      "id": "f3af870f-4228-5484-a128-90ab40b6a858",
+      "name": "Leer el pedido en SAP",
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [
+        440,
+        300
+      ],
+      "credentials": {
+        "sapRfcGuardApi": {
+          "id": "CRED_LECTURA",
+          "name": "C415 · Catálogo RFC lectura (prueba aislada)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "approvedFunction",
+        "operation": "execute",
+        "catalogFunction": {
+          "__rl": true,
+          "mode": "list",
+          "value": "BAPI_VENDOR_GETDETAIL",
+          "cachedResultName": "BAPI_VENDOR_GETDETAIL · Read supplier"
+        },
+        "catalogParametersJson": "={{ JSON.stringify({ VENDORNO: $json.exports.POHEADER.VENDOR, COMPANYCODE: $json.exports.POHEADER.COMP_CODE }) }}",
+        "limit": 20,
+        "catalogDryRun": false,
+        "catalogFailOnSapError": true
+      },
+      "id": "3bc0775f-0757-5c53-8766-07eba7143cd6",
+      "name": "Leer el proveedor del pedido",
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [
+        660,
+        300
+      ],
+      "credentials": {
+        "sapRfcGuardApi": {
+          "id": "CRED_LECTURA",
+          "name": "C415 · Catálogo RFC lectura (prueba aislada)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "approvedFunction",
+        "operation": "execute",
+        "catalogFunction": {
+          "__rl": true,
+          "mode": "list",
+          "value": "BAPI_MATERIAL_AVAILABILITY",
+          "cachedResultName": "BAPI_MATERIAL_AVAILABILITY · Check material availability"
+        },
+        "catalogParametersJson": "={{ JSON.stringify({ MATERIAL: $('Leer el pedido en SAP').item.json.tables.POITEM[0].MATERIAL, PLANT: $('Leer el pedido en SAP').item.json.tables.POITEM[0].PLANT, UNIT: $('Leer el pedido en SAP').item.json.tables.POITEM[0].PO_UNIT, WMDVSX: [{ REQ_DATE: $('Datos de la solicitud').item.json.fechaComprobacion, REQ_QTY: $('Leer el pedido en SAP').item.json.tables.POITEM[0].QUANTITY }] }) }}",
+        "limit": 20,
+        "catalogDryRun": false,
+        "catalogFailOnSapError": true
+      },
+      "id": "465cd7d3-0433-53e4-b579-2152cb17e4cc",
+      "name": "Comprobar disponibilidad del material",
+      "type": "n8n-nodes-sap-rfc-guard.sapRfcGuard",
+      "typeVersion": 1,
+      "position": [
+        880,
+        300
+      ],
+      "credentials": {
+        "sapRfcGuardApi": {
+          "id": "CRED_LECTURA",
+          "name": "C415 · Catálogo RFC lectura (prueba aislada)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "417d2baa-589c-533c-ae9e-fcfdbce55b70",
+              "name": "pedido",
+              "value": "={{ $('Leer el pedido en SAP').item.json.exports.POHEADER.PO_NUMBER }}",
+              "type": "string"
+            },
+            {
+              "id": "51de0e84-466d-5e44-a819-97838a5c3c7d",
+              "name": "sociedad",
+              "value": "={{ $('Leer el pedido en SAP').item.json.exports.POHEADER.COMP_CODE }}",
+              "type": "string"
+            },
+            {
+              "id": "bdf61446-98d8-59a0-bcee-50e530303fda",
+              "name": "proveedor",
+              "value": "={{ $('Leer el proveedor del pedido').item.json.exports.GENERALDETAIL.VENDOR }}",
+              "type": "string"
+            },
+            {
+              "id": "62e98045-c11d-5516-9237-6262998eb10c",
+              "name": "nombreProveedor",
+              "value": "={{ $('Leer el proveedor del pedido').item.json.exports.GENERALDETAIL.NAME }}",
+              "type": "string"
+            },
+            {
+              "id": "5911cb88-8046-548d-8f88-66db9604eb04",
+              "name": "ciudadProveedor",
+              "value": "={{ $('Leer el proveedor del pedido').item.json.exports.GENERALDETAIL.CITY + ' (' + $('Leer el proveedor del pedido').item.json.exports.GENERALDETAIL.COUNTRY + ')' }}",
+              "type": "string"
+            },
+            {
+              "id": "77af607b-6a4d-52f3-8ed4-d2827e176a19",
+              "name": "material",
+              "value": "={{ $('Leer el pedido en SAP').item.json.tables.POITEM[0].MATERIAL }}",
+              "type": "string"
+            },
+            {
+              "id": "aefaf28a-3151-5736-b3e9-c379ce6956fb",
+              "name": "planta",
+              "value": "={{ $('Leer el pedido en SAP').item.json.tables.POITEM[0].PLANT }}",
+              "type": "string"
+            },
+            {
+              "id": "6e67d38a-f166-516f-aea7-874c45c816e0",
+              "name": "cantidadPedida",
+              "value": "={{ $('Leer el pedido en SAP').item.json.tables.POITEM[0].QUANTITY + ' ' + $('Leer el pedido en SAP').item.json.tables.POITEM[0].PO_UNIT }}",
+              "type": "string"
+            },
+            {
+              "id": "15e43d7e-2bf8-50d6-a24b-78368cfc72d4",
+              "name": "precioNeto",
+              "value": "={{ $('Leer el pedido en SAP').item.json.tables.POITEM[0].NET_PRICE + ' ' + $('Leer el pedido en SAP').item.json.exports.POHEADER.CURRENCY }}",
+              "type": "string"
+            },
+            {
+              "id": "9d1d81ed-79cc-576b-a052-feb236f3a910",
+              "name": "fechaComprobacion",
+              "value": "={{ $('Datos de la solicitud').item.json.fechaComprobacion }}",
+              "type": "string"
+            },
+            {
+              "id": "3cf3de39-3122-5724-bed1-2654ec5131a6",
+              "name": "disponibleEnPlanta",
+              "value": "={{ $json.exports.AV_QTY_PLT }}",
+              "type": "string"
+            },
+            {
+              "id": "2ce1d690-faa5-5b4e-ad2f-7160f9d6e75f",
+              "name": "confirmadoParaLaFecha",
+              "value": "={{ $json.tables.WMDVEX[0]?.COM_QTY ?? '0.000' }}",
+              "type": "string"
+            },
+            {
+              "id": "ee5f8a4f-3008-5a1b-b15a-1eba2335fac2",
+              "name": "decision",
+              "value": "={{ ($json.exports.DIALOGFLAG === 'X' || Number($json.tables.WMDVEX[0]?.COM_QTY ?? 0) < Number($('Leer el pedido en SAP').item.json.tables.POITEM[0].QUANTITY)) ? 'Sin cobertura en planta: pedir al proveedor confirmación de entrega' : 'Cubierto en planta: no hace falta reclamar' }}",
+              "type": "string"
+            },
+            {
+              "id": "7214ff4f-8382-5000-aa03-f6a1446dc2b7",
+              "name": "evidencia",
+              "value": "={{ 'SAP ' + $json.meta.backend.systemId + '/' + $json.meta.backend.client + ' · política ' + $json.meta.policySha256.slice(0, 12) + ' · trazas ' + [$('Leer el pedido en SAP').item.json.meta.correlationId, $('Leer el proveedor del pedido').item.json.meta.correlationId, $json.meta.correlationId].join(', ') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b00bf77c-c074-5db2-b9c5-9b7d9a7f9498",
+      "name": "Preparar resumen para compras",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1100,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1 · El caso\nCompras quiere reclamar el pedido **4500000008** (12 ST de TG0001, 10 EUR/ST).\nAntes de llamar al proveedor revisa en SAP **quién es** y **si la planta 1010 tiene cobertura**.\nEl número de pedido es la entrada; todo lo demás se lee en SAP.",
+        "width": 460,
+        "height": 240,
+        "color": 4
+      },
+      "id": "16d3a284-2f0e-51b5-baba-168cb5604e91",
+      "name": "Nota 1 · Caso",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2 · Tres BAPI estándar desde el catálogo aprobado\nNo hay formulario a medida: el nodo ofrece solo funciones **aprobadas en la política del sidecar** y presentes en este SAP. El sidecar valida cada parámetro contra la **firma real** y vuelve a comprobar la política en cada llamada.\nSolo lectura: no hay commit; la disponibilidad descarta cualquier registro de actualización (rollback).",
+        "width": 640,
+        "height": 240,
+        "color": 5
+      },
+      "id": "5ce51fbe-dce7-5369-8fa2-e58bedb9d4ee",
+      "name": "Nota 2 · Catálogo",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        400,
+        20
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 3 · Decisión y evidencia\nCompara la cantidad pedida con lo confirmado para la fecha.\nGuarda sistema, mandante, hash de la política y las trazas de las tres llamadas.",
+        "width": 360,
+        "height": 240,
+        "color": 6
+      },
+      "id": "d582bb6b-2618-5242-a6ff-13dec03666fc",
+      "name": "Nota 3 · Decisión",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1060,
+        20
+      ]
+    }
+  ],
+  "connections": {
+    "Iniciar la revisión": {
+      "main": [
+        [
+          {
+            "node": "Datos de la solicitud",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Datos de la solicitud": {
+      "main": [
+        [
+          {
+            "node": "Leer el pedido en SAP",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer el pedido en SAP": {
+      "main": [
+        [
+          {
+            "node": "Leer el proveedor del pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer el proveedor del pedido": {
+      "main": [
+        [
+          {
+            "node": "Comprobar disponibilidad del material",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar disponibilidad del material": {
+      "main": [
+        [
+          {
+            "node": "Preparar resumen para compras",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
