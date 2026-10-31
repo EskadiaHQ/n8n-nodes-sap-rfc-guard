@@ -26,6 +26,7 @@ import javax.net.ssl.SSLContext;
 import java.security.KeyStore;
 
 final class HttpApi implements AutoCloseable {
+  static final String VERSION = "0.7.0";
   private static final int MAX_BODY_BYTES = 64 * 1024;
   private final Configuration configuration;
   private final SapAdapter adapter;
@@ -34,9 +35,19 @@ final class HttpApi implements AutoCloseable {
   private final HttpServer server;
   private final ExecutorService httpExecutor;
   private final ExecutorService operationExecutor;
+  private final FunctionCatalog catalog;
+  private final ObjectMapper exactMapper = new ObjectMapper()
+      .enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS)
+      .enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_INTEGER_FOR_INTS)
+      .enable(com.fasterxml.jackson.core.JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
 
   HttpApi(Configuration configuration, SapAdapter adapter) throws IOException {
+    this(configuration, adapter, null);
+  }
+
+  HttpApi(Configuration configuration, SapAdapter adapter, FunctionCatalog catalog) throws IOException {
     this.configuration = configuration;
+    this.catalog = "user-provisioning".equals(configuration.mode()) ? null : catalog;
     this.adapter = adapter;
     this.service = new GuardService(adapter);
     this.server = createServer(configuration);
@@ -45,6 +56,7 @@ final class HttpApi implements AutoCloseable {
         Thread.ofPlatform().name("sap-rfc-call-", 0).daemon(true).factory());
     this.server.createContext("/v1/health", this::health);
     this.server.createContext("/v1/operations", this::operation);
+    this.server.createContext("/v1/catalog", this::catalog);
     this.server.setExecutor(httpExecutor);
   }
 
@@ -96,12 +108,13 @@ final class HttpApi implements AutoCloseable {
           "status", "ok", "service", provisioning
               ? "sap-rfc-guard-jco-provisioning"
               : businessOperations ? "sap-rfc-guard-jco-business" : "sap-rfc-guard-jco",
-          "version", "0.6.0",
+          "version", VERSION,
           "backend", backendMap(backend),
           "capabilities", Map.of(
               "readOnly", !provisioning && !businessOperations,
               "writeEnabled", (provisioning && configuration.userCreationEnabled()) || businessOperations,
-              "operations", operations),
+              "operations", operations,
+              "functionCatalog", catalog == null ? Map.of("enabled", false) : catalog.health()),
           "timestamp", Instant.now().toString(), "correlationId", correlationId));
     } catch (RuntimeException error) {
       response(exchange, 503, Map.of("status", "unavailable", "service", "sap-rfc-guard-jco",
@@ -181,6 +194,160 @@ final class HttpApi implements AutoCloseable {
       logOperationFailure(operation, correlationId, error);
       error(exchange, 502, writeOperation ? "SAP_WRITE_FAILED" : "SAP_READ_FAILED", correlationId);
     }
+  }
+
+  /**
+   * GET  /v1/catalog/functions?query=&cursor=&limit=   approved AND present in SAP
+   * GET  /v1/catalog/functions/{name}                  real signature, policy and documentation
+   * POST /v1/catalog/functions/{name}/execute          re-validated, read-only execution
+   * GET  /v1/catalog/search?pattern=&limit=            administrative candidate search
+   */
+  @SuppressWarnings("unchecked")
+  private void catalog(HttpExchange exchange) throws IOException {
+    String correlationId = correlationId(exchange);
+    if (!authorized(exchange)) { unauthorized(exchange, correlationId); return; }
+    if (catalog == null) {
+      catalogError(exchange, new CatalogException(403, "CATALOG_DISABLED",
+          "The function catalog is not enabled on this sidecar."), correlationId);
+      return;
+    }
+    String path = exchange.getRequestURI().getRawPath();
+    String method = exchange.getRequestMethod();
+    String function = null;
+    long started = System.nanoTime();
+    try {
+      var query = queryParameters(exchange.getRequestURI().getRawQuery());
+      if ("GET".equals(method) && "/v1/catalog/functions".equals(path)) {
+        int cursor = integerParameter(query, "cursor", 0);
+        int limit = integerParameter(query, "limit", 20);
+        catalogResponse(exchange, withinTimeout(() -> catalog.list(query.get("query"), cursor, limit)), correlationId);
+        return;
+      }
+      if ("GET".equals(method) && "/v1/catalog/search".equals(path)) {
+        int limit = integerParameter(query, "limit", 20);
+        catalogResponse(exchange, withinTimeout(() -> catalog.search(query.get("pattern"), limit)), correlationId);
+        return;
+      }
+      String prefix = "/v1/catalog/functions/";
+      if (!path.startsWith(prefix)) throw new CatalogException(404, "CATALOG_ROUTE_NOT_FOUND", "Unknown catalog route.");
+      String rest = path.substring(prefix.length());
+      boolean execute = rest.endsWith("/execute");
+      String encodedName = execute ? rest.substring(0, rest.length() - "/execute".length()) : rest;
+      if (encodedName.contains("/")) throw new CatalogException(400, "FUNCTION_NAME_INVALID", "Encode / in function names as %2F.");
+      function = java.net.URLDecoder.decode(encodedName, StandardCharsets.UTF_8);
+      String name = function;
+      if ("GET".equals(method) && !execute) {
+        catalogResponse(exchange, withinTimeout(() -> catalog.signature(name)), correlationId);
+        return;
+      }
+      if (!"POST".equals(method) || !execute) throw new CatalogException(405, "METHOD_NOT_ALLOWED", "Unsupported catalog method.");
+      String expectedMode = "business-operations".equals(configuration.mode()) ? "business-operations" : "read-only";
+      byte[] bodyBytes = exchange.getRequestBody().readNBytes(MAX_BODY_BYTES + 1);
+      if (bodyBytes.length > MAX_BODY_BYTES) throw new CatalogException(413, "REQUEST_TOO_LARGE", "The request exceeds 64 KiB.");
+      Map<String, Object> body;
+      try { body = exactMapper.readValue(bodyBytes, new TypeReference<>() {}); }
+      catch (Exception error) { throw new CatalogException(400, "JSON_INVALID", "The request body is not valid JSON."); }
+      Map<String, Object> context = body.get("context") instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+      if (!name.equalsIgnoreCase(String.valueOf(body.get("function")))
+          || !Boolean.TRUE.equals(context.get("readOnly"))
+          || !expectedMode.equals(exchange.getRequestHeaders().getFirst("X-RFC-Guard-Mode"))) {
+        throw new CatalogException(403, "READ_ONLY_CONTRACT_REQUIRED",
+            "The body must name the same function and carry the read-only contract for this sidecar.");
+      }
+      Map<String, Object> parameters = catalogParameters(body);
+      Map<String, Object> options = body.get("options") instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+      Integer maxRows = options.get("maxRows") == null ? null : integerValue(options.get("maxRows"), "MAX_ROWS_INVALID");
+      boolean dryRun = Boolean.TRUE.equals(options.get("dryRun"));
+      var result = withinTimeout(() -> catalog.execute(name, parameters, maxRows, dryRun));
+      logCatalogCall(name, correlationId, String.valueOf(result.get("outcome")), started);
+      catalogResponse(exchange, result, correlationId);
+    } catch (CatalogException error) {
+      if (function != null) logCatalogCall(function, correlationId, error.code(), started);
+      catalogError(exchange, error, correlationId);
+    } catch (TimeoutException error) {
+      catalogError(exchange, new CatalogException(504, "SAP_READ_TIMEOUT",
+          "SAP did not answer within " + configuration.requestTimeoutSeconds() + " s.", Map.of("category", "TRANSPORT")), correlationId);
+    } catch (ExecutionException error) {
+      Throwable cause = error.getCause();
+      if (cause instanceof CatalogException refused) {
+        if (function != null) logCatalogCall(function, correlationId, refused.code(), started);
+        catalogError(exchange, refused, correlationId);
+      } else {
+        logOperationFailure("catalog:" + function, correlationId, cause);
+        catalogError(exchange, new CatalogException(502, "SAP_READ_FAILED", "SAP could not complete the catalog request."), correlationId);
+      }
+    } catch (InterruptedException error) {
+      Thread.currentThread().interrupt();
+      error(exchange, 503, "REQUEST_INTERRUPTED", correlationId);
+    } catch (RuntimeException error) {
+      logOperationFailure("catalog:" + function, correlationId, error);
+      catalogError(exchange, new CatalogException(500, "CATALOG_INTERNAL_ERROR", "The catalog request failed inside the sidecar."), correlationId);
+    }
+  }
+
+  @SuppressWarnings("unchecked")
+  private Map<String, Object> catalogParameters(Map<String, Object> body) {
+    Object raw = body.get("parametersJson");
+    if (raw instanceof String json) {
+      try {
+        Object parsed = exactMapper.readValue(json.isBlank() ? "{}" : json, Object.class);
+        if (parsed instanceof Map<?, ?> map) return (Map<String, Object>) map;
+      } catch (Exception error) {
+        throw new CatalogException(400, "PARAMETERS_JSON_INVALID", "parametersJson is not valid JSON (duplicated keys are rejected).");
+      }
+      throw new CatalogException(400, "PARAMETERS_JSON_INVALID", "parametersJson must be a JSON object keyed by SAP parameter name.");
+    }
+    if (body.get("parameters") instanceof Map<?, ?> map) return (Map<String, Object>) map;
+    if (body.get("parameters") == null) return Map.of();
+    throw new CatalogException(400, "PARAMETERS_JSON_INVALID", "parameters must be a JSON object keyed by SAP parameter name.");
+  }
+
+  private static Map<String, String> queryParameters(String rawQuery) {
+    var output = new LinkedHashMap<String, String>();
+    if (rawQuery == null || rawQuery.isBlank()) return output;
+    for (String pair : rawQuery.split("&")) {
+      int index = pair.indexOf('=');
+      String key = java.net.URLDecoder.decode(index < 0 ? pair : pair.substring(0, index), StandardCharsets.UTF_8);
+      String value = index < 0 ? "" : java.net.URLDecoder.decode(pair.substring(index + 1), StandardCharsets.UTF_8);
+      output.put(key, value);
+    }
+    return output;
+  }
+
+  private static int integerParameter(Map<String, String> query, String key, int fallback) {
+    String raw = query.get(key);
+    if (raw == null || raw.isBlank()) return fallback;
+    return integerValue(raw, key.toUpperCase() + "_INVALID");
+  }
+
+  private static int integerValue(Object raw, String code) {
+    try { return new java.math.BigDecimal(raw.toString().trim()).intValueExact(); }
+    catch (RuntimeException error) { throw new CatalogException(400, code, "The value must be a whole number."); }
+  }
+
+  private void catalogResponse(HttpExchange exchange, Map<String, Object> body, String correlationId) throws IOException {
+    var output = new LinkedHashMap<String, Object>(body);
+    output.put("correlationId", correlationId);
+    if (output.get("meta") instanceof Map<?, ?> meta) {
+      var withId = new LinkedHashMap<Object, Object>(meta);
+      withId.put("correlationId", correlationId);
+      output.put("meta", withId);
+    }
+    response(exchange, 200, output);
+  }
+
+  private void catalogError(HttpExchange exchange, CatalogException error, String correlationId) throws IOException {
+    var body = new LinkedHashMap<String, Object>();
+    body.put("error", error.code());
+    body.put("message", error.getMessage());
+    if (!error.details().isEmpty()) body.put("details", error.details());
+    body.put("correlationId", correlationId);
+    response(exchange, error.status(), body);
+  }
+
+  private static void logCatalogCall(String function, String correlationId, String outcome, long started) {
+    System.out.printf("RFC_GUARD_CATALOG_CALL function=%s correlationId=%s outcome=%s durationMs=%d%n",
+        function.replaceAll("[^A-Z0-9_/]", "?"), correlationId, outcome, (System.nanoTime() - started) / 1_000_000);
   }
 
   private static void logOperationFailure(String operation, String correlationId, Throwable error) {

@@ -64,7 +64,7 @@ public final class BtpRfcGuardServlet extends HttpServlet {
           : GuardService.READ_OPERATIONS;
       response(response, 200, Map.of(
           "status", "ok", "service", businessOperations
-              ? "sap-rfc-guard-jco-business" : "sap-rfc-guard-jco", "version", "0.6.0",
+              ? "sap-rfc-guard-jco-business" : "sap-rfc-guard-jco", "version", HttpApi.VERSION,
           "backend", backendMap(backend),
           "capabilities", Map.of("readOnly", !businessOperations,
               "writeEnabled", businessOperations, "operations", operations),

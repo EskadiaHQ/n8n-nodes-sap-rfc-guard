@@ -62,6 +62,9 @@ final class JcoSapAdapter implements SapAdapter {
 
   @Override public void ping() { JcoReflection.invoke(destination, "ping"); }
 
+  /** Shared with the function catalog so it uses the same pooled, credential-holding destination. */
+  Object jcoDestination() { return destination; }
+
   @Override public Backend backend() {
     Object attributes = JcoReflection.invoke(destination, "getAttributes");
     return new Backend(attribute(attributes, "getSystemID"), attribute(attributes, "getClient"),

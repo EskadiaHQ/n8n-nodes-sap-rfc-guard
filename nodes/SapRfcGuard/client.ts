@@ -287,3 +287,50 @@ export async function executeApprovedWriteOperation(
 		credentials,
 	);
 }
+
+/**
+ * Calls a /v1/catalog route and turns sidecar refusals into readable errors that keep the
+ * sidecar code (for example PARAMETER_UNKNOWN or SAP_RFC_NOT_AUTHORIZED) and safe details.
+ */
+export async function catalogRequest(
+	credentials: SapRfcGuardCredentials,
+	httpRequest: RfcGuardHttpRequest,
+	method: 'GET' | 'POST',
+	path: string,
+	correlationId: string,
+	body?: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+	const options: RfcGuardRequestOptions = {
+		...requestOptions(
+			credentials,
+			method,
+			path,
+			correlationId,
+			credentials.sidecarMode === 'businessOperations' ? 'business-operations' : 'read-only',
+			body,
+		),
+		timeout: Number(credentials.requestTimeout),
+		ignoreHttpStatusErrors: true,
+		returnFullResponse: true,
+	};
+	let response: unknown;
+	try {
+		response = await httpRequest(options);
+	} catch (error) {
+		// Converted to NodeOperationError at the execute boundary, which has node context.
+		// eslint-disable-next-line @n8n/community-nodes/require-node-api-error
+		throw new OperationalError(redactError(error, credentials).message);
+	}
+	const full = record(response);
+	const status = Number(full.statusCode ?? 200);
+	const payload = record(full.body !== undefined ? full.body : response);
+	if (status >= 400) {
+		const code = typeof payload.error === 'string' ? payload.error : `HTTP_${status}`;
+		const message = typeof payload.message === 'string'
+			? payload.message : 'The RFC sidecar rejected the catalog request.';
+		const details = payload.details && typeof payload.details === 'object'
+			? ` Details: ${JSON.stringify(payload.details)}` : '';
+		throw new OperationalError(`RFC Guard ${code}: ${message}${details}`);
+	}
+	return payload;
+}

@@ -199,6 +199,15 @@ The node is intentionally separate from Logali HANA Guard. They share governance
 use different transports: HANA Guard speaks HANA SQL; SAP RFC Guard speaks HTTPS to an RFC
 sidecar.
 
+## Approved function catalog
+
+Version 0.7.0 adds the **Approved Function** resource: pick a read-only SAP function from
+a live list, read its real signature and run it with JSON input. Only functions approved in
+the sidecar policy, present in SAP and listed in the credential are offered, and the sidecar
+re-checks everything on every call. Configuration, minimum SAP permissions, the policy
+format and how to approve a new function are in
+[docs/FUNCTION-CATALOG.md](docs/FUNCTION-CATALOG.md).
+
 ## Compatibility and optional snapshot
 
 The transport does not require HANA. It can target compatible SAP R/3, ECC and

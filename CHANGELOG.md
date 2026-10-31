@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.0 - 2026-10-31 (not published)
+
+- New resource **Approved Function** with Search, Get Signature and Execute. It runs
+  read-only SAP functions approved in a server-side catalog policy, without a dedicated
+  form per BAPI. See `docs/FUNCTION-CATALOG.md`.
+- The function list is live and paginated (`listSearch`): sidecar policy ∩ present and
+  remote-enabled in SAP ∩ the credential's `Approved Catalog Functions`. Both new
+  credential fields are off/empty by default.
+- The sidecar reads the real signature (JCo repository, `RFC_GET_FUNCTION_INTERFACE`),
+  verifies BAPIs against the BOR when allowed, re-reads the policy on every call, keeps
+  leading zeros and exact decimals, and separates transport errors, SAP authorization,
+  ABAP exceptions, runtime errors and business messages.
+- Catalog errors now reach n8n with the sidecar code and message instead of a bare HTTP
+  status.
+- JCo sidecar 0.7.0: new `/v1/catalog` routes and `RFC_GUARD_FUNCTION_CATALOG`. Without that
+  variable the sidecar behaves like 0.6.0. Existing operations, aliases and credentials are
+  unchanged.
+
 ## 0.6.0 - 2026-10-26
 
 - Reunify the two lines of this package. The business-operations line was installed in
